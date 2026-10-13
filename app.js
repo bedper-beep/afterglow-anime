@@ -1,4 +1,3 @@
-
 const API = "https://api.jikan.moe/v4";
 
 const catalog = document.getElementById("catalog");
@@ -18,13 +17,26 @@ let loading = true;
 let loadError = "";
 
 const knownDubTitles = [
-  "attack on titan", "spy x family", "demon slayer",
-  "my hero academia", "death note", "haikyu!!",
-  "fullmetal alchemist: brotherhood", "your name",
-  "jujutsu kaisen", "naruto", "one piece",
-  "frieren: beyond journey's end", "solo leveling",
-  "mob psycho 100", "hunter x hunter", "black clover",
-  "dr. stone", "blue lock", "chainsaw man", "suzume"
+  "attack on titan",
+  "spy x family",
+  "demon slayer",
+  "my hero academia",
+  "death note",
+  "haikyu!!",
+  "fullmetal alchemist: brotherhood",
+  "your name",
+  "jujutsu kaisen",
+  "naruto",
+  "one piece",
+  "frieren: beyond journey's end",
+  "solo leveling",
+  "mob psycho 100",
+  "hunter x hunter",
+  "black clover",
+  "dr. stone",
+  "blue lock",
+  "chainsaw man",
+  "suzume"
 ];
 
 // Add only authorized video-provider checks here.
@@ -42,8 +54,15 @@ function readList(key) {
 
 function saveData() {
   try {
-    localStorage.setItem("afterglow-favorites", JSON.stringify(favorites));
-    localStorage.setItem("afterglow-history", JSON.stringify(history));
+    localStorage.setItem(
+      "afterglow-favorites",
+      JSON.stringify(favorites)
+    );
+
+    localStorage.setItem(
+      "afterglow-history",
+      JSON.stringify(history)
+    );
   } catch {
     console.warn("Could not save Afterglow data.");
   }
@@ -72,6 +91,7 @@ function getPoster(anime) {
 function safeImage(url) {
   try {
     const parsed = new URL(url);
+
     return ["https:", "http:"].includes(parsed.protocol)
       ? parsed.href
       : "";
@@ -100,6 +120,7 @@ function addNavigation() {
     link.id = id;
     link.href = href;
     link.textContent = label;
+
     nav.appendChild(link);
   });
 }
@@ -107,8 +128,10 @@ function addNavigation() {
 function addExtraSections() {
   if (!document.getElementById("recently-viewed")) {
     const section = document.createElement("section");
+
     section.id = "recently-viewed";
     section.className = "library";
+
     section.innerHTML = `
       <div class="section-heading">
         <div>
@@ -118,13 +141,16 @@ function addExtraSections() {
       </div>
       <div id="historyGrid" class="catalog"></div>
     `;
+
     document.querySelector("main")?.appendChild(section);
   }
 
   if (!document.getElementById("operative")) {
     const section = document.createElement("section");
+
     section.id = "operative";
     section.className = "library";
+
     section.innerHTML = `
       <div class="section-heading">
         <div>
@@ -132,11 +158,14 @@ function addExtraSections() {
           <h2>Operative</h2>
           <p class="description">Check configured sources.</p>
         </div>
-        <button class="button" id="refreshSources">Check again</button>
+        <button class="button" id="refreshSources">
+          Check again
+        </button>
       </div>
       <div id="sourceSummary" class="source-summary"></div>
       <div id="sourceList" class="source-list"></div>
     `;
+
     document.querySelector("main")?.appendChild(section);
   }
 }
@@ -146,8 +175,14 @@ function animeCard(anime) {
   const title = titleOf(anime);
   const poster = safeImage(getPoster(anime));
   const saved = favorites.includes(id);
-  const score = anime.score ? Number(anime.score).toFixed(1) : "N/A";
-  const year = anime.year || anime.aired?.prop?.from?.year || "Year unknown";
+  const score = anime.score
+    ? Number(anime.score).toFixed(1)
+    : "N/A";
+
+  const year = anime.year ||
+    anime.aired?.prop?.from?.year ||
+    "Year unknown";
+
   const genres = (anime.genres || [])
     .slice(0, 2)
     .map(item => item.name)
@@ -155,18 +190,30 @@ function animeCard(anime) {
 
   return `
     <article class="anime-card">
-      <div class="poster"
+      <div
+        class="poster"
         role="button"
         tabindex="0"
         data-open="${id}"
-        aria-label="View ${escapeHTML(title)}">
-        ${poster ? `
-          <img src="${escapeHTML(poster)}"
-            alt="${escapeHTML(title)} poster"
-            loading="lazy"
-            onerror="this.style.display='none'">
-        ` : ""}
-        <span class="poster-title">${escapeHTML(title)}</span>
+        aria-label="View ${escapeHTML(title)}"
+      >
+        ${
+          poster
+            ? `
+              <img
+                src="${escapeHTML(poster)}"
+                alt="${escapeHTML(title)} poster"
+                loading="lazy"
+                onerror="this.style.display='none'"
+              >
+            `
+            : ""
+        }
+
+        <span class="poster-title">
+          ${escapeHTML(title)}
+        </span>
+
         <span class="poster-label">AFTERGLOW</span>
       </div>
 
@@ -180,14 +227,20 @@ function animeCard(anime) {
       </div>
 
       <span class="card-badge">
-        ${hasKnownDub(anime)
-          ? "English dub release known"
-          : "Dub info unconfirmed"}
+        ${
+          hasKnownDub(anime)
+            ? "English dub release known"
+            : "Dub info unconfirmed"
+        }
       </span>
 
       <div class="card-actions">
         <button data-open="${id}">Details</button>
-        <button data-favorite="${id}" aria-pressed="${saved}">
+
+        <button
+          data-favorite="${id}"
+          aria-pressed="${saved}"
+        >
           ${saved ? "♥ Saved" : "♡ Favorite"}
         </button>
       </div>
@@ -204,35 +257,47 @@ function renderCatalog() {
 
   if (loading) {
     catalog.innerHTML = emptyMessage("Loading anime artwork…");
+
     favoritesGrid.innerHTML = emptyMessage(
       "Your favorites will appear here."
     );
+
     return;
   }
 
   if (!animeList.length) {
     catalog.innerHTML = loadError
-      ? `${emptyMessage(loadError)}
-         <button class="button" id="retryCatalog">Try again</button>`
+      ? `
+        ${emptyMessage(loadError)}
+        <button class="button" id="retryCatalog">
+          Try again
+        </button>
+      `
       : emptyMessage("No anime loaded.");
 
     favoritesGrid.innerHTML = emptyMessage(
       "Your favorites will appear here."
     );
+
     return;
   }
 
-  const query = (searchInput?.value || "").trim().toLowerCase();
+  const query = (searchInput?.value || "")
+    .trim()
+    .toLowerCase();
 
   const filtered = animeList.filter(anime => {
     const title = titleOf(anime).toLowerCase();
+
     const genres = (anime.genres || [])
       .map(g => g.name)
       .join(" ")
       .toLowerCase();
 
-    return (title.includes(query) || genres.includes(query)) &&
-      (!dubOnly?.checked || hasKnownDub(anime));
+    return (
+      (title.includes(query) || genres.includes(query)) &&
+      (!dubOnly?.checked || hasKnownDub(anime))
+    );
   });
 
   catalog.innerHTML = filtered.length
@@ -247,7 +312,9 @@ function renderCatalog() {
 
   favoritesGrid.innerHTML = saved.length
     ? saved.map(animeCard).join("")
-    : emptyMessage("Your list is empty. Save an anime to find it here.");
+    : emptyMessage(
+        "Your list is empty. Save an anime to find it here."
+      );
 
   renderHistory();
 }
@@ -256,15 +323,19 @@ function renderHistory() {
   const grid = document.getElementById("historyGrid");
   if (!grid) return;
 
-  const recent = history.map(id =>
-    animeList.find(anime =>
-      Number(anime.mal_id) === Number(id)
+  const recent = history
+    .map(id =>
+      animeList.find(
+        anime => Number(anime.mal_id) === Number(id)
+      )
     )
-  ).filter(Boolean);
+    .filter(Boolean);
 
   grid.innerHTML = recent.length
     ? recent.map(animeCard).join("")
-    : emptyMessage("Open an anime to add it to your recent history.");
+    : emptyMessage(
+        "Open an anime to add it to your recent history."
+      );
 }
 
 function addToHistory(id) {
@@ -289,35 +360,54 @@ function openDetails(id) {
 
   const title = titleOf(anime);
   const poster = safeImage(getPoster(anime));
+
   const genres = (anime.genres || [])
     .map(g => g.name)
     .join(" · ") || "Anime";
 
   detailContent.innerHTML = `
     <div class="detail-hero">
-      ${poster ? `
-        <img class="detail-poster"
-          src="${escapeHTML(poster)}"
-          alt="${escapeHTML(title)} poster">
-      ` : ""}
+      ${
+        poster
+          ? `
+            <img
+              class="detail-poster"
+              src="${escapeHTML(poster)}"
+              alt="${escapeHTML(title)} poster"
+            >
+          `
+          : ""
+      }
 
       <div class="detail-copy">
         <p class="eyebrow">FEATURED COLLECTION</p>
+
         <h2>${escapeHTML(title)}</h2>
-        <p>★ ${anime.score
-          ? Number(anime.score).toFixed(1)
-          : "Not rated"}</p>
+
+        <p>
+          ★ ${
+            anime.score
+              ? Number(anime.score).toFixed(1)
+              : "Not rated"
+          }
+        </p>
+
         <p>${escapeHTML(genres)}</p>
+
         <span class="card-badge">
-          ${hasKnownDub(anime)
-            ? "English dub release known — verify provider"
-            : "Dub availability unconfirmed"}
+          ${
+            hasKnownDub(anime)
+              ? "English dub release known — verify provider"
+              : "Dub availability unconfirmed"
+          }
         </span>
       </div>
     </div>
 
     <p class="detail-synopsis">
-      ${escapeHTML(anime.synopsis || "No description available.")}
+      ${escapeHTML(
+        anime.synopsis || "No description available."
+      )}
     </p>
 
     <div class="detail-facts">
@@ -325,6 +415,7 @@ function openDetails(id) {
         <strong>Episodes</strong>
         ${escapeHTML(String(anime.episodes || "Unknown"))}
       </span>
+
       <span>
         <strong>Status</strong>
         ${escapeHTML(anime.status || "Unknown")}
@@ -333,37 +424,55 @@ function openDetails(id) {
 
     <div class="watch-panel">
       <p class="eyebrow">WATCH OPTIONS</p>
+
       <h3>Find where to watch</h3>
-      <p>Actual playback needs a compatible, authorized video source.</p>
-      <a class="button"
+
+      <p>
+        Actual playback needs a compatible, authorized video source.
+      </p>
+
+      <a
+        class="button"
         href="https://www.justwatch.com/us/search?q=${encodeURIComponent(title)}"
         target="_blank"
-        rel="noopener noreferrer">
+        rel="noopener noreferrer"
+      >
         Find legal viewing options ↗
       </a>
     </div>
 
     <div class="detail-actions">
-      <button class="button"
+      <button
+        class="button"
         id="detailFavorite"
-        data-favorite="${id}">
-        ${favorites.includes(id)
-          ? "♥ In My List"
-          : "♡ Add to My List"}
+        data-favorite="${id}"
+      >
+        ${
+          favorites.includes(id)
+            ? "♥ In My List"
+            : "♡ Add to My List"
+        }
       </button>
-      <button class="button secondary-button"
-        id="closeDetailBottom">Close</button>
+
+      <button
+        class="button secondary-button"
+        id="closeDetailBottom"
+      >
+        Close
+      </button>
     </div>
   `;
 
   details.showModal();
 
-  document.getElementById("closeDetailBottom")
+  document
+    .getElementById("closeDetailBottom")
     ?.addEventListener("click", () => details.close());
 }
 
 function renderFeatured() {
   const hero = document.querySelector(".hero");
+
   if (!hero || !animeList.length) return;
 
   const featured = animeList
@@ -381,10 +490,12 @@ function renderFeatured() {
   hero.classList.add("featured-hero");
 
   hero.innerHTML = `
-    <img class="featured-backdrop"
+    <img
+      class="featured-backdrop"
       src="${escapeHTML(poster)}"
       alt=""
-      onerror="this.style.display='none'">
+      onerror="this.style.display='none'"
+    >
 
     <div class="featured-shade"></div>
 
@@ -396,44 +507,63 @@ function renderFeatured() {
       <h1>${escapeHTML(title)}</h1>
 
       <p class="featured-description">
-        ${escapeHTML(anime.synopsis || "Discover your next favorite story.")}
+        ${escapeHTML(
+          anime.synopsis || "Discover your next favorite story."
+        )}
       </p>
 
       <p class="hero-note">
-        ★ ${anime.score ? Number(anime.score).toFixed(1) : "Not rated"}
+        ★ ${
+          anime.score
+            ? Number(anime.score).toFixed(1)
+            : "Not rated"
+        }
       </p>
 
       <div class="featured-controls">
-        <button class="featured-play" id="featuredPlay">▶ Play</button>
-        <button id="featuredPrev" aria-label="Previous anime">‹</button>
-        <button id="featuredNext" aria-label="Next anime">›</button>
+        <button class="featured-play" id="featuredPlay">
+          ▶ Play
+        </button>
+
+        <button id="featuredPrev" aria-label="Previous anime">
+          ‹
+        </button>
+
+        <button id="featuredNext" aria-label="Next anime">
+          ›
+        </button>
       </div>
 
       <div class="featured-dots">
         ${featured.map((item, index) => `
-          <button class="${index === featuredIndex ? "active" : ""}"
+          <button
+            class="${index === featuredIndex ? "active" : ""}"
             data-feature-index="${index}"
-            aria-label="Show ${escapeHTML(titleOf(item))}">
-          </button>
+            aria-label="Show ${escapeHTML(titleOf(item))}"
+          ></button>
         `).join("")}
       </div>
     </div>
   `;
 
-  document.getElementById("featuredPlay")
+  document
+    .getElementById("featuredPlay")
     ?.addEventListener("click", () => {
       openDetails(Number(anime.mal_id));
     });
 
-  document.getElementById("featuredPrev")
+  document
+    .getElementById("featuredPrev")
     ?.addEventListener("click", () => changeFeatured(-1));
 
-  document.getElementById("featuredNext")
+  document
+    .getElementById("featuredNext")
     ?.addEventListener("click", () => changeFeatured(1));
 
   hero.querySelectorAll("[data-feature-index]").forEach(button => {
     button.addEventListener("click", () => {
       featuredIndex = Number(button.dataset.featureIndex);
+
       renderFeatured();
       startFeaturedRotation();
     });
@@ -448,6 +578,7 @@ function changeFeatured(direction) {
   if (!total) return;
 
   featuredIndex = (featuredIndex + direction + total) % total;
+
   renderFeatured();
 }
 
@@ -456,6 +587,7 @@ function startFeaturedRotation() {
 
   featuredTimer = setInterval(() => {
     if (document.hidden || details?.open) return;
+
     changeFeatured(1);
   }, 6000);
 }
@@ -470,9 +602,12 @@ function renderOperative() {
     summary.innerHTML = `
       <div class="source-status">
         <span class="status-dot status-idle"></span>
+
         <div>
           <strong>No video sources configured</strong>
-          <p>Configure a legitimate provider before testing playback.</p>
+          <p>
+            Configure a legitimate provider before testing playback.
+          </p>
         </div>
       </div>
     `;
@@ -480,6 +615,7 @@ function renderOperative() {
     list.innerHTML = emptyMessage(
       "No sources are configured yet. Anime information loads separately."
     );
+
     return;
   }
 
@@ -492,20 +628,26 @@ function renderOperative() {
   list.innerHTML = SOURCE_CHECKS.map((source, index) => `
     <div class="source-status" id="source-${index}">
       <span class="status-dot status-checking"></span>
+
       <div>
-        <strong>${escapeHTML(source.name || `Source ${index + 1}`)}</strong>
+        <strong>
+          ${escapeHTML(source.name || `Source ${index + 1}`)}
+        </strong>
         <p>Checking endpoint…</p>
       </div>
+
       <span class="source-label">Checking</span>
     </div>
   `).join("");
 
   SOURCE_CHECKS.forEach(async (source, index) => {
     const row = document.getElementById(`source-${index}`);
+
     if (!row) return;
 
     try {
       const url = new URL(source.url);
+
       if (!["https:", "http:"].includes(url.protocol)) {
         throw new Error("Invalid URL protocol");
       }
@@ -539,15 +681,43 @@ function renderOperative() {
   });
 }
 
+/*
+ * Prevent the catalog from loading forever when an API is slow.
+ */
+async function fetchWithTimeout(
+  url,
+  options = {},
+  timeoutMs = 10000
+) {
+  const controller = new AbortController();
+
+  const timer = setTimeout(
+    () => controller.abort(),
+    timeoutMs
+  );
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function loadCatalog() {
   loading = true;
   loadError = "";
+
   renderCatalog();
 
-  // Try Jikan first, then AniList if Jikan is unavailable.
+  // Try Jikan first.
   try {
-    const response = await fetch(
-      `${API}/top/anime?limit=24&sfw=true`
+    const response = await fetchWithTimeout(
+      `${API}/top/anime?limit=24&sfw=true`,
+      {},
+      8000
     );
 
     if (!response.ok) {
@@ -563,10 +733,11 @@ async function loadCatalog() {
     animeList = result.data;
   } catch (primaryError) {
     console.warn(
-      "Primary anime catalog failed; trying backup.",
+      "Primary anime source failed; trying AniList.",
       primaryError
     );
 
+    // Try AniList as the backup.
     try {
       const query = `
         query {
@@ -577,8 +748,13 @@ async function loadCatalog() {
               isAdult: false
             ) {
               id
-              title { romaji english }
-              coverImage { large }
+              title {
+                romaji
+                english
+              }
+              coverImage {
+                large
+              }
               description(asHtml: false)
               averageScore
               episodes
@@ -590,13 +766,17 @@ async function loadCatalog() {
         }
       `;
 
-      const response = await fetch("https://graphql.anilist.co", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
+      const response = await fetchWithTimeout(
+        "https://graphql.anilist.co",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ query })
         },
-        body: JSON.stringify({ query })
-      });
+        10000
+      );
 
       if (!response.ok) {
         throw new Error(`AniList returned ${response.status}`);
@@ -612,25 +792,31 @@ async function loadCatalog() {
       // Convert AniList data to the format used by Afterglow.
       animeList = items.map(item => ({
         mal_id: item.id,
+
         title: item.title?.romaji ||
           item.title?.english ||
           "Untitled anime",
+
         title_english: item.title?.english || "",
+
         images: {
           webp: {
             large_image_url: item.coverImage?.large || ""
-          },
-          jpg: {
-            large_image_url: item.coverImage?.large || ""
           }
         },
+
         score: item.averageScore
           ? item.averageScore / 10
           : null,
+
         year: item.seasonYear || null,
+
         synopsis: item.description || "",
+
         episodes: item.episodes,
+
         status: item.status || "Unknown",
+
         genres: (item.genres || []).map(name => ({ name }))
       }));
     } catch (backupError) {
@@ -640,12 +826,14 @@ async function loadCatalog() {
       );
 
       animeList = [];
+
       loadError =
         "The anime catalog couldn't connect. Check your connection, then try again.";
     }
   }
 
   loading = false;
+
   renderCatalog();
   renderOperative();
 
@@ -657,6 +845,7 @@ async function loadCatalog() {
 
 document.addEventListener("click", event => {
   const target = event.target;
+
   if (!(target instanceof Element)) return;
 
   const openButton = target.closest("[data-open]");
@@ -700,21 +889,27 @@ document.addEventListener("click", event => {
 document.addEventListener("keydown", event => {
   if (
     (event.key === "Enter" || event.key === " ") &&
+    event.target instanceof Element &&
     event.target.matches(".poster[role='button']")
   ) {
     event.preventDefault();
+
     openDetails(Number(event.target.dataset.open));
   }
 });
 
-document.getElementById("closeDetails")
-  ?.addEventListener("click", () => details.close());
+document
+  .getElementById("closeDetails")
+  ?.addEventListener("click", () => details?.close());
 
 details?.addEventListener("click", event => {
-  if (event.target === details) details.close();
+  if (event.target === details) {
+    details.close();
+  }
 });
 
 searchInput?.addEventListener("input", renderCatalog);
+
 dubOnly?.addEventListener("change", renderCatalog);
 
 addNavigation();
