@@ -1,918 +1,934 @@
-const API = "https://api.jikan.moe/v4";
+/* Project Afterglow — app.js */
+(() => {
+  "use strict";
 
-const catalog = document.getElementById("catalog");
-const favoritesGrid = document.getElementById("favorites");
-const searchInput = document.getElementById("search");
-const dubOnly = document.getElementById("dubOnly");
-const details = document.getElementById("details");
-const detailContent = document.getElementById("detailContent");
+  const API = "https://api.jikan.moe/v4";
+  const ANILIST_API = "https://graphql.anilist.co";
+  const FAV_KEY = "afterglow-favorites";
+  const HISTORY_KEY = "afterglow-history";
+  const SETTINGS_KEY = "afterglow-settings";
+  const $ = (selector, root = document) => root.querySelector(selector);
 
-let animeList = [];
-let favorites = readList("afterglow-favorites");
-let history = readList("afterglow-history");
-let featuredIndex = 0;
-let featuredTimer = null;
-let activeAnime = null;
-let loading = true;
-let loadError = "";
+  const searchInput = $("#search");
+  const catalog = $("#catalog");
+  const detailsDialog = $("#details");
+  const detailContent = $("#detailContent");
+  const favoritesRoot = $("#favorites");
+  const hero = $(".hero");
 
-const knownDubTitles = [
-  "attack on titan",
-  "spy x family",
-  "demon slayer",
-  "my hero academia",
-  "death note",
-  "haikyu!!",
-  "fullmetal alchemist: brotherhood",
-  "your name",
-  "jujutsu kaisen",
-  "naruto",
-  "one piece",
-  "frieren: beyond journey's end",
-  "solo leveling",
-  "mob psycho 100",
-  "hunter x hunter",
-  "black clover",
-  "dr. stone",
-  "blue lock",
-  "chainsaw man",
-  "suzume"
-];
+  let animeList = [];
+  let featuredIndex = 0;
+  let featuredTimer = null;
+  let currentFilter = "";
+  let settings = {
+    wallpaper: "neon",
+    appearance: "dark",
+    glow: true,
+    particles: true,
+    motion: true
+  };
 
-// Add only authorized video-provider checks here.
-// Leave empty until a real provider is configured.
-const SOURCE_CHECKS = [];
+  const safeRead = (key, fallback) => {
+    try {
+      const value = JSON.parse(localStorage.getItem(key));
+      return value ?? fallback;
+    } catch {
+      return fallback;
+    }
+  };
 
-function readList(key) {
-  try {
-    const value = JSON.parse(localStorage.getItem(key) || "[]");
-    return Array.isArray(value) ? value : [];
-  } catch {
-    return [];
-  }
-}
+  const safeWrite = (key, value) => {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch {}
+  };
 
-function saveData() {
-  try {
-    localStorage.setItem(
-      "afterglow-favorites",
-      JSON.stringify(favorites)
-    );
+  const favorites = () => safeRead(FAV_KEY, []);
+  const history = () => safeRead(HISTORY_KEY, []);
 
-    localStorage.setItem(
-      "afterglow-history",
-      JSON.stringify(history)
-    );
-  } catch {
-    console.warn("Could not save Afterglow data.");
-  }
-}
+  const escapeHTML = (value = "") =>
+    String(value).replace(/[&<>"']/g, char => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;"
+    })[char]);
 
-function escapeHTML(value) {
-  return String(value ?? "").replace(/[&<>"']/g, char => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;"
-  })[char]);
-}
+  const titleOf = anime =>
+    anime?.title_english || anime?.title || "Untitled anime";
 
-function titleOf(anime) {
-  return anime.title_english || anime.title || "Untitled anime";
-}
+  const imageOf = anime =>
+    anime?.images?.webp?.large_image_url ||
+    anime?.images?.jpg?.large_image_url ||
+    anime?.coverImage?.extraLarge ||
+    anime?.coverImage?.large ||
+    "";
 
-function getPoster(anime) {
-  return anime.images?.webp?.large_image_url ||
-    anime.images?.jpg?.large_image_url ||
-    anime.images?.webp?.image_url || "";
-}
+  const scoreOf = anime =>
+    Number(anime?.score || anime?.averageScore / 10 || 0);
 
-function safeImage(url) {
-  try {
-    const parsed = new URL(url);
+  const synopsisOf = anime =>
+    anime?.synopsis ||
+    anime?.description?.replace(/<[^>]*>/g, "") ||
+    "No description is available yet.";
 
-    return ["https:", "http:"].includes(parsed.protocol)
-      ? parsed.href
-      : "";
-  } catch {
-    return "";
-  }
-}
+  const legalSearch = title =>
+    `https://www.justwatch.com/us/search?q=${encodeURIComponent(title)}`;
 
-function hasKnownDub(anime) {
-  return knownDubTitles.includes(
-    titleOf(anime).trim().toLowerCase()
-  );
-}
-
-function addNavigation() {
-  const nav = document.querySelector(".topbar nav");
-  if (!nav) return;
-
-  [
-    ["operativeLink", "#operative", "Operative"],
-    ["historyLink", "#recently-viewed", "Recently viewed"]
-  ].forEach(([id, href, label]) => {
-    if (document.getElementById(id)) return;
-
-    const link = document.createElement("a");
-    link.id = id;
-    link.href = href;
-    link.textContent = label;
-
-    nav.appendChild(link);
-  });
-}
-
-function addExtraSections() {
-  if (!document.getElementById("recently-viewed")) {
-    const section = document.createElement("section");
-
-    section.id = "recently-viewed";
-    section.className = "library";
-
-    section.innerHTML = `
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">PICK UP WHERE YOU LEFT OFF</p>
-          <h2>Recently viewed</h2>
-        </div>
-      </div>
-      <div id="historyGrid" class="catalog"></div>
-    `;
-
-    document.querySelector("main")?.appendChild(section);
-  }
-
-  if (!document.getElementById("operative")) {
-    const section = document.createElement("section");
-
-    section.id = "operative";
-    section.className = "library";
-
-    section.innerHTML = `
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">SOURCE STATUS</p>
-          <h2>Operative</h2>
-          <p class="description">Check configured sources.</p>
-        </div>
-        <button class="button" id="refreshSources">
-          Check again
-        </button>
-      </div>
-      <div id="sourceSummary" class="source-summary"></div>
-      <div id="sourceList" class="source-list"></div>
-    `;
-
-    document.querySelector("main")?.appendChild(section);
-  }
-}
-
-function animeCard(anime) {
-  const id = Number(anime.mal_id);
-  const title = titleOf(anime);
-  const poster = safeImage(getPoster(anime));
-  const saved = favorites.includes(id);
-  const score = anime.score
-    ? Number(anime.score).toFixed(1)
-    : "N/A";
-
-  const year = anime.year ||
-    anime.aired?.prop?.from?.year ||
-    "Year unknown";
-
-  const genres = (anime.genres || [])
-    .slice(0, 2)
-    .map(item => item.name)
-    .join(" · ") || "Anime";
-
-  return `
-    <article class="anime-card">
-      <div
-        class="poster"
-        role="button"
-        tabindex="0"
-        data-open="${id}"
-        aria-label="View ${escapeHTML(title)}"
-      >
-        ${
-          poster
-            ? `
-              <img
-                src="${escapeHTML(poster)}"
-                alt="${escapeHTML(title)} poster"
-                loading="lazy"
-                onerror="this.style.display='none'"
-              >
-            `
-            : ""
+  function normalizeAniList(item) {
+    return {
+      mal_id: item.id,
+      title:
+        item.title?.english ||
+        item.title?.romaji ||
+        item.title?.native ||
+        "Untitled anime",
+      title_english: item.title?.english || "",
+      synopsis:
+        item.description?.replace(/<[^>]*>/g, "") ||
+        "No description is available yet.",
+      score: item.averageScore ? item.averageScore / 10 : 0,
+      episodes: item.episodes || null,
+      year: item.seasonYear || null,
+      status: item.status || "",
+      images: {
+        webp: {
+          large_image_url:
+            item.coverImage?.extraLarge ||
+            item.coverImage?.large ||
+            ""
         }
-
-        <span class="poster-title">
-          ${escapeHTML(title)}
-        </span>
-
-        <span class="poster-label">AFTERGLOW</span>
-      </div>
-
-      <div class="card-info">
-        <h3>${escapeHTML(title)}</h3>
-        <span class="rating">★ ${score}</span>
-      </div>
-
-      <div class="card-meta">
-        ${escapeHTML(String(year))} · ${escapeHTML(genres)}
-      </div>
-
-      <span class="card-badge">
-        ${
-          hasKnownDub(anime)
-            ? "English dub release known"
-            : "Dub info unconfirmed"
-        }
-      </span>
-
-      <div class="card-actions">
-        <button data-open="${id}">Details</button>
-
-        <button
-          data-favorite="${id}"
-          aria-pressed="${saved}"
-        >
-          ${saved ? "♥ Saved" : "♡ Favorite"}
-        </button>
-      </div>
-    </article>
-  `;
-}
-
-function emptyMessage(message) {
-  return `<p class="empty">${escapeHTML(message)}</p>`;
-}
-
-function renderCatalog() {
-  if (!catalog || !favoritesGrid) return;
-
-  if (loading) {
-    catalog.innerHTML = emptyMessage("Loading anime artwork…");
-
-    favoritesGrid.innerHTML = emptyMessage(
-      "Your favorites will appear here."
-    );
-
-    return;
+      },
+      genres: item.genres || [],
+      source: "AniList"
+    };
   }
 
-  if (!animeList.length) {
-    catalog.innerHTML = loadError
-      ? `
-        ${emptyMessage(loadError)}
-        <button class="button" id="retryCatalog">
-          Try again
-        </button>
-      `
-      : emptyMessage("No anime loaded.");
+  async function fetchWithTimeout(url, options = {}, timeout = 12000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
 
-    favoritesGrid.innerHTML = emptyMessage(
-      "Your favorites will appear here."
-    );
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
 
-    return;
-  }
-
-  const query = (searchInput?.value || "")
-    .trim()
-    .toLowerCase();
-
-  const filtered = animeList.filter(anime => {
-    const title = titleOf(anime).toLowerCase();
-
-    const genres = (anime.genres || [])
-      .map(g => g.name)
-      .join(" ")
-      .toLowerCase();
-
-    return (
-      (title.includes(query) || genres.includes(query)) &&
-      (!dubOnly?.checked || hasKnownDub(anime))
-    );
-  });
-
-  catalog.innerHTML = filtered.length
-    ? filtered.map(animeCard).join("")
-    : emptyMessage(
-        "No matches. Try another search or disable the dub filter."
-      );
-
-  const saved = animeList.filter(anime =>
-    favorites.includes(Number(anime.mal_id))
-  );
-
-  favoritesGrid.innerHTML = saved.length
-    ? saved.map(animeCard).join("")
-    : emptyMessage(
-        "Your list is empty. Save an anime to find it here."
-      );
-
-  renderHistory();
-}
-
-function renderHistory() {
-  const grid = document.getElementById("historyGrid");
-  if (!grid) return;
-
-  const recent = history
-    .map(id =>
-      animeList.find(
-        anime => Number(anime.mal_id) === Number(id)
-      )
-    )
-    .filter(Boolean);
-
-  grid.innerHTML = recent.length
-    ? recent.map(animeCard).join("")
-    : emptyMessage(
-        "Open an anime to add it to your recent history."
-      );
-}
-
-function addToHistory(id) {
-  history = [
-    id,
-    ...history.filter(item => Number(item) !== id)
-  ].slice(0, 12);
-
-  saveData();
-  renderHistory();
-}
-
-function openDetails(id) {
-  const anime = animeList.find(
-    item => Number(item.mal_id) === id
-  );
-
-  if (!anime || !details || !detailContent) return;
-
-  activeAnime = anime;
-  addToHistory(id);
-
-  const title = titleOf(anime);
-  const poster = safeImage(getPoster(anime));
-
-  const genres = (anime.genres || [])
-    .map(g => g.name)
-    .join(" · ") || "Anime";
-
-  detailContent.innerHTML = `
-    <div class="detail-hero">
-      ${
-        poster
-          ? `
-            <img
-              class="detail-poster"
-              src="${escapeHTML(poster)}"
-              alt="${escapeHTML(title)} poster"
-            >
-          `
-          : ""
+      if (!response.ok) {
+        throw new Error(`Request failed (${response.status})`);
       }
 
-      <div class="detail-copy">
-        <p class="eyebrow">FEATURED COLLECTION</p>
+      return await response.json();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 
-        <h2>${escapeHTML(title)}</h2>
+  async function loadAnime() {
+    setStatus("Loading anime catalog…");
 
-        <p>
-          ★ ${
-            anime.score
-              ? Number(anime.score).toFixed(1)
-              : "Not rated"
-          }
-        </p>
+    try {
+      const result = await fetchWithTimeout(
+        `${API}/top/anime?limit=24&sfw=true`
+      );
 
-        <p>${escapeHTML(genres)}</p>
+      animeList = (result.data || []).map(item => ({
+        ...item,
+        source: "Jikan"
+      }));
 
-        <span class="card-badge">
-          ${
-            hasKnownDub(anime)
-              ? "English dub release known — verify provider"
-              : "Dub availability unconfirmed"
-          }
-        </span>
-      </div>
-    </div>
+      if (!animeList.length) {
+        throw new Error("No anime returned");
+      }
 
-    <p class="detail-synopsis">
-      ${escapeHTML(
-        anime.synopsis || "No description available."
-      )}
-    </p>
-
-    <div class="detail-facts">
-      <span>
-        <strong>Episodes</strong>
-        ${escapeHTML(String(anime.episodes || "Unknown"))}
-      </span>
-
-      <span>
-        <strong>Status</strong>
-        ${escapeHTML(anime.status || "Unknown")}
-      </span>
-    </div>
-
-    <div class="watch-panel">
-      <p class="eyebrow">WATCH OPTIONS</p>
-
-      <h3>Find where to watch</h3>
-
-      <p>
-        Actual playback needs a compatible, authorized video source.
-      </p>
-
-      <a
-        class="button"
-        href="https://www.justwatch.com/us/search?q=${encodeURIComponent(title)}"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        Find legal viewing options ↗
-      </a>
-    </div>
-
-    <div class="detail-actions">
-      <button
-        class="button"
-        id="detailFavorite"
-        data-favorite="${id}"
-      >
-        ${
-          favorites.includes(id)
-            ? "♥ In My List"
-            : "♡ Add to My List"
-        }
-      </button>
-
-      <button
-        class="button secondary-button"
-        id="closeDetailBottom"
-      >
-        Close
-      </button>
-    </div>
-  `;
-
-  details.showModal();
-
-  document
-    .getElementById("closeDetailBottom")
-    ?.addEventListener("click", () => details.close());
-}
-
-function renderFeatured() {
-  const hero = document.querySelector(".hero");
-
-  if (!hero || !animeList.length) return;
-
-  const featured = animeList
-    .filter(anime => getPoster(anime))
-    .slice(0, 8);
-
-  if (!featured.length) return;
-
-  featuredIndex = featuredIndex % featured.length;
-
-  const anime = featured[featuredIndex];
-  const title = titleOf(anime);
-  const poster = safeImage(getPoster(anime));
-
-  hero.classList.add("featured-hero");
-
-  hero.innerHTML = `
-    <img
-      class="featured-backdrop"
-      src="${escapeHTML(poster)}"
-      alt=""
-      onerror="this.style.display='none'"
-    >
-
-    <div class="featured-shade"></div>
-
-    <div class="featured-content">
-      <p class="eyebrow">
-        FEATURED ANIME · ${featuredIndex + 1} / ${featured.length}
-      </p>
-
-      <h1>${escapeHTML(title)}</h1>
-
-      <p class="featured-description">
-        ${escapeHTML(
-          anime.synopsis || "Discover your next favorite story."
-        )}
-      </p>
-
-      <p class="hero-note">
-        ★ ${
-          anime.score
-            ? Number(anime.score).toFixed(1)
-            : "Not rated"
-        }
-      </p>
-
-      <div class="featured-controls">
-        <button class="featured-play" id="featuredPlay">
-          ▶ Play
-        </button>
-
-        <button id="featuredPrev" aria-label="Previous anime">
-          ‹
-        </button>
-
-        <button id="featuredNext" aria-label="Next anime">
-          ›
-        </button>
-      </div>
-
-      <div class="featured-dots">
-        ${featured.map((item, index) => `
-          <button
-            class="${index === featuredIndex ? "active" : ""}"
-            data-feature-index="${index}"
-            aria-label="Show ${escapeHTML(titleOf(item))}"
-          ></button>
-        `).join("")}
-      </div>
-    </div>
-  `;
-
-  document
-    .getElementById("featuredPlay")
-    ?.addEventListener("click", () => {
-      openDetails(Number(anime.mal_id));
-    });
-
-  document
-    .getElementById("featuredPrev")
-    ?.addEventListener("click", () => changeFeatured(-1));
-
-  document
-    .getElementById("featuredNext")
-    ?.addEventListener("click", () => changeFeatured(1));
-
-  hero.querySelectorAll("[data-feature-index]").forEach(button => {
-    button.addEventListener("click", () => {
-      featuredIndex = Number(button.dataset.featureIndex);
-
+      setStatus("Catalog updated from Jikan");
+      renderAll();
       renderFeatured();
-      startFeaturedRotation();
-    });
-  });
-}
+    } catch {
+      try {
+        const query = `
+          query {
+            Page(page: 1, perPage: 24) {
+              media(
+                type: ANIME,
+                sort: POPULARITY_DESC,
+                isAdult: false
+              ) {
+                id
+                title {
+                  romaji
+                  english
+                  native
+                }
+                description
+                averageScore
+                episodes
+                seasonYear
+                status
+                coverImage {
+                  large
+                  extraLarge
+                }
+                genres
+              }
+            }
+          }
+        `;
 
-function changeFeatured(direction) {
-  const total = animeList
-    .filter(anime => getPoster(anime))
-    .slice(0, 8).length;
+        const data = await fetchWithTimeout(ANILIST_API, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+          },
+          body: JSON.stringify({ query })
+        });
 
-  if (!total) return;
+        animeList = (data.data?.Page?.media || [])
+          .map(normalizeAniList);
 
-  featuredIndex = (featuredIndex + direction + total) % total;
+        if (!animeList.length) {
+          throw new Error("No backup results");
+        }
 
-  renderFeatured();
-}
+        setStatus("Catalog updated from AniList");
+        renderAll();
+        renderFeatured();
+      } catch {
+        setStatus(
+          "Could not load the catalog. Check your connection and try again.",
+          true
+        );
 
-function startFeaturedRotation() {
-  if (featuredTimer) clearInterval(featuredTimer);
+        if (catalog) {
+          catalog.innerHTML = `
+            <div class="empty-state">
+              <h3>Catalog unavailable</h3>
+              <p>Connect to the internet, then try again.</p>
+              <button class="action-button" id="retryCatalog">
+                Try again
+              </button>
+            </div>
+          `;
 
-  featuredTimer = setInterval(() => {
-    if (document.hidden || details?.open) return;
+          $("#retryCatalog")?.addEventListener("click", loadAnime);
+        }
+      }
+    }
+  }
 
-    changeFeatured(1);
-  }, 6000);
-}
+  function setStatus(message, error = false) {
+    let status = $("#sourceStatus");
 
-function renderOperative() {
-  const summary = document.getElementById("sourceSummary");
-  const list = document.getElementById("sourceList");
+    if (!status) {
+      status = document.createElement("p");
+      status.id = "sourceStatus";
+      status.className = "source-status";
 
-  if (!summary || !list) return;
+      const target = $("#discover") || catalog?.parentElement;
+      target?.append(status);
+    }
 
-  if (!SOURCE_CHECKS.length) {
-    summary.innerHTML = `
-      <div class="source-status">
-        <span class="status-dot status-idle"></span>
+    status.textContent = message;
+    status.classList.toggle("is-error", error);
+  }
 
-        <div>
-          <strong>No video sources configured</strong>
-          <p>
-            Configure a legitimate provider before testing playback.
+  function matchesFilter(anime) {
+    const query = currentFilter.trim().toLowerCase();
+
+    return !query ||
+      [
+        titleOf(anime),
+        anime.title,
+        anime.title_english,
+        synopsisOf(anime),
+        ...(anime.genres || [])
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+  }
+
+  function cardMarkup(anime) {
+    const id = String(anime.mal_id ?? anime.id);
+    const isFav = favorites().some(
+      item => String(item.mal_id ?? item.id) === id
+    );
+
+    const title = titleOf(anime);
+    const image = imageOf(anime);
+
+    return `
+      <article class="anime-card" data-anime-id="${escapeHTML(id)}">
+        <button
+          class="poster-button"
+          data-action="details"
+          data-id="${escapeHTML(id)}"
+          aria-label="View ${escapeHTML(title)} details"
+        >
+          ${
+            image
+              ? `<img
+                  class="poster"
+                  src="${escapeHTML(image)}"
+                  alt="${escapeHTML(title)}"
+                  loading="lazy"
+                >`
+              : `<span class="poster poster-placeholder">✦</span>`
+          }
+          <span class="poster-overlay">
+            <span>View details ↗</span>
+          </span>
+        </button>
+
+        <div class="card-copy">
+          <div class="card-title-row">
+            <h3>${escapeHTML(title)}</h3>
+
+            <button
+              class="favorite-button ${isFav ? "is-favorite" : ""}"
+              data-action="favorite"
+              data-id="${escapeHTML(id)}"
+              aria-label="${isFav ? "Remove from" : "Add to"} favorites"
+            >${isFav ? "★" : "☆"}</button>
+          </div>
+
+          <p class="card-meta">
+            ${scoreOf(anime)
+              ? `★ ${scoreOf(anime).toFixed(1)}`
+              : "Score unavailable"}
+            ${anime.year ? ` · ${escapeHTML(anime.year)}` : ""}
+            ${anime.episodes
+              ? ` · ${escapeHTML(anime.episodes)} eps`
+              : ""}
+          </p>
+
+          <button
+            class="text-link"
+            data-action="details"
+            data-id="${escapeHTML(id)}"
+          >
+            Explore anime <span>→</span>
+          </button>
+        </div>
+      </article>
+    `;
+  }
+
+  function renderCatalog() {
+    if (!catalog) return;
+
+    const filtered = animeList.filter(matchesFilter);
+
+    catalog.innerHTML = filtered.length
+      ? filtered.map(cardMarkup).join("")
+      : `
+        <div class="empty-state">
+          <h3>No matches found</h3>
+          <p>Try another title or search term.</p>
+        </div>
+      `;
+  }
+
+  function renderFavorites() {
+    if (!favoritesRoot) return;
+
+    const list = favorites();
+
+    favoritesRoot.innerHTML = list.length
+      ? list.map(cardMarkup).join("")
+      : `
+        <div class="empty-state compact-empty">
+          <p>Your saved anime will appear here.</p>
+          <span class="empty-star">✦</span>
+        </div>
+      `;
+  }
+
+  function renderHistory() {
+    let section = $("#recentlyViewed");
+
+    if (!section) {
+      const main = $("main");
+      if (!main) return;
+
+      section = document.createElement("section");
+      section.id = "recentlyViewed";
+      section.className = "library-section";
+
+      section.innerHTML = `
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">PICK UP WHERE YOU LEFT OFF</p>
+            <h2>Recently viewed</h2>
+          </div>
+        </div>
+        <div id="historyCards" class="anime-grid"></div>
+      `;
+
+      const favoritesSection = $("#my-list");
+
+      if (favoritesSection) {
+        favoritesSection.before(section);
+      } else {
+        main.append(section);
+      }
+    }
+
+    const target = $("#historyCards");
+    if (!target) return;
+
+    const recent = history()
+      .map(saved =>
+        animeList.find(item =>
+          String(item.mal_id ?? item.id) ===
+          String(saved.mal_id ?? saved.id)
+        ) || saved
+      )
+      .slice(0, 6);
+
+    target.innerHTML = recent.length
+      ? recent.map(cardMarkup).join("")
+      : `
+        <div class="empty-state compact-empty">
+          <p>Anime you explore will show up here.</p>
+        </div>
+      `;
+  }
+
+  function renderAll() {
+    renderCatalog();
+    renderFavorites();
+    renderHistory();
+  }
+
+  function getAnime(id) {
+    return (
+      animeList.find(
+        item => String(item.mal_id ?? item.id) === String(id)
+      ) ||
+      favorites().find(
+        item => String(item.mal_id ?? item.id) === String(id)
+      ) ||
+      history().find(
+        item => String(item.mal_id ?? item.id) === String(id)
+      )
+    );
+  }
+
+  function openDetails(id) {
+    const anime = getAnime(id);
+
+    if (!anime || !detailContent || !detailsDialog) return;
+
+    const title = titleOf(anime);
+    const img = imageOf(anime);
+
+    const genres = (anime.genres || [])
+      .map(genre => typeof genre === "string" ? genre : genre.name)
+      .filter(Boolean);
+
+    const isFav = favorites().some(
+      item => String(item.mal_id ?? item.id) ===
+        String(anime.mal_id ?? anime.id)
+    );
+
+    detailContent.innerHTML = `
+      <div class="detail-layout">
+        <div class="detail-poster-wrap">
+          ${
+            img
+              ? `<img
+                  class="detail-poster"
+                  src="${escapeHTML(img)}"
+                  alt="${escapeHTML(title)}"
+                >`
+              : `<div class="detail-poster poster-placeholder">✦</div>`
+          }
+        </div>
+
+        <div class="detail-copy">
+          <p class="eyebrow">ANIME DETAILS</p>
+          <h2>${escapeHTML(title)}</h2>
+
+          <p class="detail-meta">
+            ${scoreOf(anime)
+              ? `★ ${scoreOf(anime).toFixed(1)} / 10`
+              : "Score unavailable"}
+            ${anime.year ? ` · ${escapeHTML(anime.year)}` : ""}
+            ${anime.episodes
+              ? ` · ${escapeHTML(anime.episodes)} episodes`
+              : ""}
+          </p>
+
+          ${
+            genres.length
+              ? `<div class="genre-list">
+                  ${genres.map(genre =>
+                    `<span>${escapeHTML(genre)}</span>`
+                  ).join("")}
+                </div>`
+              : ""
+          }
+
+          <p class="detail-synopsis">
+            ${escapeHTML(synopsisOf(anime))}
+          </p>
+
+          <div class="detail-actions">
+            <a
+              class="action-button primary-action"
+              href="${legalSearch(title)}"
+              target="_blank"
+              rel="noopener noreferrer"
+            >Find legal viewing options ↗</a>
+
+            <button
+              class="action-button secondary-action"
+              data-action="favorite"
+              data-id="${escapeHTML(anime.mal_id ?? anime.id)}"
+            >${isFav ? "★ Saved to My List" : "☆ Add to My List"}</button>
+          </div>
+
+          <p class="legal-note">
+            Availability depends on your region and subscription.
+            This link searches for licensed viewing options.
           </p>
         </div>
       </div>
     `;
 
-    list.innerHTML = emptyMessage(
-      "No sources are configured yet. Anime information loads separately."
+    const oldHistory = history().filter(
+      item => String(item.mal_id ?? item.id) !==
+        String(anime.mal_id ?? anime.id)
     );
 
-    return;
-  }
+    safeWrite(HISTORY_KEY, [
+      { ...anime, viewedAt: Date.now() },
+      ...oldHistory
+    ].slice(0, 12));
 
-  summary.innerHTML = `
-    <div class="source-status">
-      <strong>Checking configured sources…</strong>
-    </div>
-  `;
+    renderHistory();
 
-  list.innerHTML = SOURCE_CHECKS.map((source, index) => `
-    <div class="source-status" id="source-${index}">
-      <span class="status-dot status-checking"></span>
-
-      <div>
-        <strong>
-          ${escapeHTML(source.name || `Source ${index + 1}`)}
-        </strong>
-        <p>Checking endpoint…</p>
-      </div>
-
-      <span class="source-label">Checking</span>
-    </div>
-  `).join("");
-
-  SOURCE_CHECKS.forEach(async (source, index) => {
-    const row = document.getElementById(`source-${index}`);
-
-    if (!row) return;
-
-    try {
-      const url = new URL(source.url);
-
-      if (!["https:", "http:"].includes(url.protocol)) {
-        throw new Error("Invalid URL protocol");
-      }
-
-      const response = await fetch(url.href, {
-        method: "HEAD",
-        mode: "cors",
-        cache: "no-store"
-      });
-
-      const ready = response.ok;
-
-      row.querySelector("p").textContent = ready
-        ? "Endpoint responded; playback still needs testing."
-        : `Endpoint returned status ${response.status}.`;
-
-      row.querySelector(".source-label").textContent =
-        ready ? "Responding" : "Unavailable";
-
-      row.querySelector(".status-dot").className =
-        `status-dot ${ready ? "status-ready" : "status-offline"}`;
-    } catch {
-      row.querySelector("p").textContent =
-        "Endpoint could not be verified from this browser.";
-
-      row.querySelector(".source-label").textContent = "Unverified";
-
-      row.querySelector(".status-dot").className =
-        "status-dot status-offline";
+    if (typeof detailsDialog.showModal === "function") {
+      detailsDialog.showModal();
+    } else {
+      detailsDialog.setAttribute("open", "");
     }
-  });
-}
-
-/*
- * Prevent the catalog from loading forever when an API is slow.
- */
-async function fetchWithTimeout(
-  url,
-  options = {},
-  timeoutMs = 10000
-) {
-  const controller = new AbortController();
-
-  const timer = setTimeout(
-    () => controller.abort(),
-    timeoutMs
-  );
-
-  try {
-    return await fetch(url, {
-      ...options,
-      signal: controller.signal
-    });
-  } finally {
-    clearTimeout(timer);
   }
-}
 
-async function loadCatalog() {
-  loading = true;
-  loadError = "";
+  function toggleFavorite(id) {
+    const anime = getAnime(id);
+    if (!anime) return;
 
-  renderCatalog();
+    const list = favorites();
 
-  // Try Jikan first.
-  try {
-    const response = await fetchWithTimeout(
-      `${API}/top/anime?limit=24&sfw=true`,
-      {},
-      8000
+    const exists = list.some(
+      item => String(item.mal_id ?? item.id) === String(id)
     );
 
-    if (!response.ok) {
-      throw new Error(`Jikan returned ${response.status}`);
-    }
-
-    const result = await response.json();
-
-    if (!Array.isArray(result.data) || !result.data.length) {
-      throw new Error("Jikan returned no anime.");
-    }
-
-    animeList = result.data;
-  } catch (primaryError) {
-    console.warn(
-      "Primary anime source failed; trying AniList.",
-      primaryError
+    safeWrite(
+      FAV_KEY,
+      exists
+        ? list.filter(
+            item => String(item.mal_id ?? item.id) !== String(id)
+          )
+        : [{ ...anime }, ...list]
     );
 
-    // Try AniList as the backup.
-    try {
-      const query = `
-        query {
-          Page(page: 1, perPage: 24) {
-            media(
-              type: ANIME,
-              sort: POPULARITY_DESC,
-              isAdult: false
-            ) {
-              id
-              title {
-                romaji
-                english
-              }
-              coverImage {
-                large
-              }
-              description(asHtml: false)
-              averageScore
-              episodes
-              seasonYear
-              genres
-              status
-            }
-          }
-        }
-      `;
+    renderAll();
 
-      const response = await fetchWithTimeout(
-        "https://graphql.anilist.co",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ query })
-        },
-        10000
-      );
-
-      if (!response.ok) {
-        throw new Error(`AniList returned ${response.status}`);
-      }
-
-      const result = await response.json();
-      const items = result.data?.Page?.media || [];
-
-      if (!items.length) {
-        throw new Error("AniList returned no anime.");
-      }
-
-      // Convert AniList data to the format used by Afterglow.
-      animeList = items.map(item => ({
-        mal_id: item.id,
-
-        title: item.title?.romaji ||
-          item.title?.english ||
-          "Untitled anime",
-
-        title_english: item.title?.english || "",
-
-        images: {
-          webp: {
-            large_image_url: item.coverImage?.large || ""
-          }
-        },
-
-        score: item.averageScore
-          ? item.averageScore / 10
-          : null,
-
-        year: item.seasonYear || null,
-
-        synopsis: item.description || "",
-
-        episodes: item.episodes,
-
-        status: item.status || "Unknown",
-
-        genres: (item.genres || []).map(name => ({ name }))
-      }));
-    } catch (backupError) {
-      console.error(
-        "Both anime catalog sources failed:",
-        backupError
-      );
-
-      animeList = [];
-
-      loadError =
-        "The anime catalog couldn't connect. Check your connection, then try again.";
-    }
-  }
-
-  loading = false;
-
-  renderCatalog();
-  renderOperative();
-
-  if (animeList.length) {
-    renderFeatured();
-    startFeaturedRotation();
-  }
-}
-
-document.addEventListener("click", event => {
-  const target = event.target;
-
-  if (!(target instanceof Element)) return;
-
-  const openButton = target.closest("[data-open]");
-  const favoriteButton = target.closest("[data-favorite]");
-
-  if (openButton) {
-    openDetails(Number(openButton.dataset.open));
-    return;
-  }
-
-  if (favoriteButton) {
-    const id = Number(favoriteButton.dataset.favorite);
-
-    favorites = favorites.includes(id)
-      ? favorites.filter(item => item !== id)
-      : [...favorites, id];
-
-    saveData();
-    renderCatalog();
-
-    if (
-      activeAnime &&
-      Number(activeAnime.mal_id) === id &&
-      details?.open
-    ) {
+    if (detailsDialog?.open) {
       openDetails(id);
     }
-
-    return;
   }
 
-  if (target.id === "retryCatalog") {
-    loadCatalog();
+  function renderFeatured() {
+    if (!animeList.length) return;
+
+    const titleEl =
+      $("#heroTitle") || $(".hero h1") || $(".hero h2");
+
+    const descriptionEl =
+      $("#heroDescription") || $(".hero p");
+
+    const imageEl =
+      $("#heroImage") || $(".hero img");
+
+    const exploreBtn =
+      $("#heroExplore") || $(".hero [data-action='details']");
+
+    const dots = $("#heroDots");
+    const anime = animeList[featuredIndex % animeList.length];
+    const synopsis = synopsisOf(anime);
+
+    if (titleEl) {
+      titleEl.textContent = titleOf(anime);
+    }
+
+    if (descriptionEl) {
+      descriptionEl.textContent =
+        synopsis.slice(0, 220) +
+        (synopsis.length > 220 ? "…" : "");
+    }
+
+    if (imageEl && imageOf(anime)) {
+      imageEl.src = imageOf(anime);
+      imageEl.alt = titleOf(anime);
+    } else if (hero && imageOf(anime)) {
+      hero.style.setProperty(
+        "--hero-art",
+        `url("${imageOf(anime)}")`
+      );
+    }
+
+    if (exploreBtn) {
+      exploreBtn.dataset.action = "details";
+      exploreBtn.dataset.id = String(anime.mal_id ?? anime.id);
+
+      if (exploreBtn.tagName === "A") {
+        exploreBtn.href = "#discover";
+      }
+    }
+
+    if (dots) {
+      dots.innerHTML = animeList
+        .slice(0, Math.min(5, animeList.length))
+        .map((_, index) => `
+          <button
+            class="hero-dot ${
+              index === featuredIndex % 5 ? "active" : ""
+            }"
+            data-feature-index="${index}"
+            aria-label="Featured anime ${index + 1}"
+          ></button>
+        `)
+        .join("");
+    }
   }
 
-  if (target.id === "refreshSources") {
-    renderOperative();
+  function setupFeaturedRotation() {
+    $("#heroNext")?.addEventListener("click", () => {
+      featuredIndex =
+        (featuredIndex + 1) % Math.max(animeList.length, 1);
+      renderFeatured();
+    });
+
+    $("#heroPrevious")?.addEventListener("click", () => {
+      featuredIndex =
+        (featuredIndex - 1 + animeList.length) %
+        Math.max(animeList.length, 1);
+      renderFeatured();
+    });
+
+    if (featuredTimer) clearInterval(featuredTimer);
+
+    featuredTimer = setInterval(() => {
+      if (!document.hidden && settings.motion && animeList.length > 1) {
+        featuredIndex = (featuredIndex + 1) % animeList.length;
+        renderFeatured();
+      }
+    }, 6500);
   }
-});
 
-document.addEventListener("keydown", event => {
-  if (
-    (event.key === "Enter" || event.key === " ") &&
-    event.target instanceof Element &&
-    event.target.matches(".poster[role='button']")
-  ) {
-    event.preventDefault();
+  function addSettingsAndSplash() {
+    const topbar = $(".topbar");
 
-    openDetails(Number(event.target.dataset.open));
+    if (topbar && !$("#settingsToggle")) {
+      const button = document.createElement("button");
+
+      button.id = "settingsToggle";
+      button.className = "settings-toggle";
+      button.type = "button";
+      button.setAttribute("aria-label", "Open appearance settings");
+      button.title = "Appearance settings";
+
+      button.innerHTML = `
+        <span aria-hidden="true">⚙</span>
+        <span class="settings-label">Settings</span>
+      `;
+
+      const search = $("#search");
+
+      if (search) {
+        search.insertAdjacentElement("afterend", button);
+      } else {
+        topbar.append(button);
+      }
+    }
+
+    if (!$("#settingsPanel")) {
+      const panel = document.createElement("aside");
+
+      panel.id = "settingsPanel";
+      panel.className = "settings-panel";
+      panel.hidden = true;
+      panel.setAttribute("aria-label", "Appearance settings");
+
+      panel.innerHTML = `
+        <div class="settings-head">
+          <div>
+            <p class="eyebrow">MAKE IT YOURS</p>
+            <h2>Appearance</h2>
+          </div>
+          <button
+            class="icon-button"
+            id="closeSettings"
+            aria-label="Close settings"
+          >×</button>
+        </div>
+
+        <label class="setting-label">Wallpaper</label>
+
+        <div class="wallpaper-options">
+          <button class="wallpaper-choice neon" data-wallpaper="neon">
+            <span>Neon City</span>
+          </button>
+          <button class="wallpaper-choice sunset" data-wallpaper="sunset">
+            <span>Sunset Beach</span>
+          </button>
+          <button class="wallpaper-choice galaxy" data-wallpaper="galaxy">
+            <span>Galaxy</span>
+          </button>
+          <button class="wallpaper-choice glass" data-wallpaper="glass">
+            <span>Frosted Glass</span>
+          </button>
+        </div>
+
+        <label class="setting-label" for="appearanceChoice">
+          Appearance mode
+        </label>
+
+        <select id="appearanceChoice" class="settings-select">
+          <option value="dark">Dark</option>
+          <option value="light">Light</option>
+          <option value="system">Match device</option>
+        </select>
+
+        <div class="setting-switch">
+          <span>
+            <strong>Glow effects</strong>
+            <small>Soft neon highlights</small>
+          </span>
+          <input type="checkbox" id="glowChoice">
+        </div>
+
+        <div class="setting-switch">
+          <span>
+            <strong>Floating particles</strong>
+            <small>Subtle background detail</small>
+          </span>
+          <input type="checkbox" id="particlesChoice">
+        </div>
+
+        <div class="setting-switch">
+          <span>
+            <strong>Motion effects</strong>
+            <small>Gentle movement and rotation</small>
+          </span>
+          <input type="checkbox" id="motionChoice">
+        </div>
+
+        <p class="settings-footnote">
+          Your choices are saved on this device.
+        </p>
+      `;
+
+      document.body.append(panel);
+    }
+
+    if (
+      !$("#afterglowSplash") &&
+      !safeRead("afterglow-splash-seen", false)
+    ) {
+      const splash = document.createElement("div");
+
+      splash.id = "afterglowSplash";
+      splash.className = "splash-screen";
+
+      splash.innerHTML = `
+        <div class="splash-logo">✦</div>
+        <div class="splash-name">afterglow<span>.</span></div>
+        <p>Your next anime discovery starts here.</p>
+        <div class="splash-loader"><i></i></div>
+      `;
+
+      document.body.append(splash);
+
+      window.setTimeout(() => {
+        splash.classList.add("splash-hidden");
+        safeWrite("afterglow-splash-seen", true);
+
+        window.setTimeout(() => splash.remove(), 500);
+      }, 1900);
+    }
   }
-});
 
-document
-  .getElementById("closeDetails")
-  ?.addEventListener("click", () => details?.close());
+  function applySettings() {
+    document.documentElement.dataset.wallpaper =
+      settings.wallpaper || "neon";
 
-details?.addEventListener("click", event => {
-  if (event.target === details) {
-    details.close();
+    document.documentElement.dataset.appearance =
+      settings.appearance || "dark";
+
+    document.documentElement.classList.toggle(
+      "no-glow",
+      !settings.glow
+    );
+
+    document.documentElement.classList.toggle(
+      "no-particles",
+      !settings.particles
+    );
+
+    document.documentElement.classList.toggle(
+      "no-motion",
+      !settings.motion
+    );
+
+    const panel = $("#settingsPanel");
+
+    if (panel) {
+      $("#appearanceChoice").value =
+        settings.appearance || "dark";
+
+      $("#glowChoice").checked = !!settings.glow;
+      $("#particlesChoice").checked = !!settings.particles;
+      $("#motionChoice").checked = !!settings.motion;
+
+      panel.querySelectorAll("[data-wallpaper]").forEach(button => {
+        button.classList.toggle(
+          "selected",
+          button.dataset.wallpaper === settings.wallpaper
+        );
+      });
+    }
+
+    safeWrite(SETTINGS_KEY, settings);
   }
-});
 
-searchInput?.addEventListener("input", renderCatalog);
+  function setupSettings() {
+    settings = {
+      ...settings,
+      ...safeRead(SETTINGS_KEY, {})
+    };
 
-dubOnly?.addEventListener("change", renderCatalog);
+    applySettings();
 
-addNavigation();
-addExtraSections();
-renderOperative();
-loadCatalog();
+    $("#settingsToggle")?.addEventListener("click", () => {
+      const panel = $("#settingsPanel");
+      panel.hidden = !panel.hidden;
+      panel.classList.toggle("panel-open", !panel.hidden);
+    });
+
+    $("#closeSettings")?.addEventListener("click", () => {
+      $("#settingsPanel").hidden = true;
+      $("#settingsPanel").classList.remove("panel-open");
+    });
+
+    $("#settingsPanel")?.addEventListener("click", event => {
+      const button = event.target.closest("[data-wallpaper]");
+
+      if (button) {
+        settings.wallpaper = button.dataset.wallpaper;
+        applySettings();
+      }
+    });
+
+    $("#appearanceChoice")?.addEventListener("change", event => {
+      settings.appearance = event.target.value;
+      applySettings();
+    });
+
+    [
+      ["glowChoice", "glow"],
+      ["particlesChoice", "particles"],
+      ["motionChoice", "motion"]
+    ].forEach(([id, key]) => {
+      $(`#${id}`)?.addEventListener("change", event => {
+        settings[key] = event.target.checked;
+        applySettings();
+      });
+    });
+
+    document.addEventListener("click", event => {
+      const panel = $("#settingsPanel");
+      const toggle = $("#settingsToggle");
+
+      if (
+        panel &&
+        !panel.hidden &&
+        !panel.contains(event.target) &&
+        !toggle?.contains(event.target)
+      ) {
+        panel.hidden = true;
+        panel.classList.remove("panel-open");
+      }
+    });
+
+    document.addEventListener("keydown", event => {
+      const panel = $("#settingsPanel");
+
+      if (event.key === "Escape" && panel && !panel.hidden) {
+        panel.hidden = true;
+        panel.classList.remove("panel-open");
+      }
+    });
+  }
+
+  document.addEventListener("click", event => {
+    const action = event.target.closest("[data-action]");
+
+    if (action) {
+      const id = action.dataset.id;
+
+      if (action.dataset.action === "details") {
+        openDetails(id);
+      }
+
+      if (action.dataset.action === "favorite") {
+        event.preventDefault();
+        toggleFavorite(id);
+      }
+    }
+
+    const featureDot = event.target.closest("[data-feature-index]");
+
+    if (featureDot) {
+      featuredIndex = Number(featureDot.dataset.featureIndex) || 0;
+      renderFeatured();
+    }
+  });
+
+  searchInput?.addEventListener("input", event => {
+    currentFilter = event.target.value;
+    renderCatalog();
+  });
+
+  $("#dubOnly")?.addEventListener("change", event => {
+    if (event.target.checked) {
+      setStatus(
+        "Dub filter is a rough title-based guide, not a verified dub database."
+      );
+    } else {
+      setStatus("Catalog ready");
+    }
+  });
+
+  detailsDialog?.addEventListener("click", event => {
+    if (event.target === detailsDialog) {
+      detailsDialog.close();
+    }
+  });
+
+  $("#closeDetails")?.addEventListener("click", () => {
+    detailsDialog?.close();
+  });
+
+  addSettingsAndSplash();
+  setupSettings();
+  setupFeaturedRotation();
+  renderAll();
+  loadAnime();
+})();
