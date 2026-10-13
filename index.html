@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#101218">
+  <title>Afterglow — Anime, Your Way</title>
+  <meta name="description" content="Discover your next anime adventure with Afterglow.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#">
+      <span class="brand-mark">A</span>
+      <span>afterglow<span class="dot">.</span></span>
+    </a>
+
+    <nav>
+      <a href="#discover">Discover</a>
+      <a href="#my-list">My List</a>
+    </nav>
+
+    <input
+      id="search"
+      type="search"
+      placeholder="Search anime..."
+      aria-label="Search anime"
+    >
+  </header>
+
+  <main>
+    <section class="hero">
+      <p class="eyebrow">YOUR NEXT OBSESSION</p>
+      <h1>Stories that<br><em>stay with you.</em></h1>
+      <p class="description">
+        Discover new worlds, unforgettable characters, and your next favorite story.
+      </p>
+      <a class="button" href="#discover">Explore the library ↗</a>
+    </section>
+
+    <section id="discover" class="library">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">YOUR NEXT MARATHON</p>
+          <h2>Discover anime</h2>
+        </div>
+
+        <label class="dub-filter">
+          <input type="checkbox" id="dubOnly">
+          English dub only
+        </label>
+      </div>
+
+      <div id="catalog" class="catalog"></div>
+    </section>
+
+    <section id="my-list" class="my-list">
+      <p class="eyebrow">SAVED FOR LATER</p>
+      <h2>My list</h2>
+      <div id="favorites" class="catalog"></div>
+    </section>
+  </main>
+
+  <dialog id="details">
+    <button id="closeDetails" class="close" aria-label="Close">×</button>
+    <div id="detailContent"></div>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
+
+
