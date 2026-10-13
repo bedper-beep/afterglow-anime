@@ -900,3 +900,21 @@ main {
     font-size: 12px;
   }
 }
+
+/* Featured banner layer fix */
+.hero.featured-hero {
+  position: relative;
+  isolation: isolate;
+}
+
+.hero.featured-hero .featured-backdrop {
+  z-index: 0;
+}
+
+.hero.featured-hero .featured-shade {
+  z-index: 1;
+}
+
+.hero.featured-hero .featured-content {
+  z-index: 2;
+}
