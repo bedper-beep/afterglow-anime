@@ -1,160 +1,154 @@
 
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0b0c10">
-  <meta name="description" content="Discover anime, explore details, save favorites, and find legal streaming options with Afterglow.">
+  <meta name="theme-color" content="#101218">
   <title>Afterglow — Anime, Your Way</title>
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preconnect" href="https://api.jikan.moe">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
-
-  <style>
-    .site-footer {
-      margin-top: 80px;
-      padding: 28px 0;
-      border-top: 1px solid rgba(255,255,255,.09);
-      color: #999ca9;
-      font-size: 12px;
-    }
-
-    .footer-inner {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      gap: 12px;
-    }
-
-    .footer-inner p {
-      margin: 0;
-    }
-
-    .footer-brand {
-      color: #e8b887;
-      font-weight: 800;
-    }
-
-    .hero-note {
-      margin-top: 14px;
-      color: #aaaab5;
-      font-size: 11px;
-    }
-
-    .catalog-status {
-      margin: 0 0 16px;
-      color: #999ca9;
-      font-size: 12px;
-    }
-
-    .topbar nav a:focus-visible,
-    button:focus-visible,
-    a:focus-visible,
-    input:focus-visible,
-    [tabindex="0"]:focus-visible {
-      outline: 2px solid #e8b887;
-      outline-offset: 4px;
-    }
-  </style>
 </head>
-
 <body>
   <header class="topbar">
     <a class="brand" href="#" aria-label="Afterglow home">
-      <span class="brand-mark">A</span>
+      <span class="brand-mark">✦</span>
       <span>afterglow<span class="dot">.</span></span>
     </a>
-
-    <nav aria-label="Main navigation">
-      <a href="#discover">Discover</a>
-      <a href="#my-list">My List</a>
+    <nav class="desktop-nav" aria-label="Main navigation">
+      <button class="nav-link active" data-view="home">Discover</button>
+      <button class="nav-link" data-view="favorites">My List</button>
+      <button class="nav-link" data-view="history">Recently Viewed</button>
     </nav>
-
-    <input
-      id="search"
-      type="search"
-      placeholder="Search anime..."
-      aria-label="Search anime"
-      autocomplete="off"
-    >
+    <label class="search-wrap">
+      <span aria-hidden="true">⌕</span>
+      <input id="search" type="search" placeholder="Search anime..." autocomplete="off" aria-label="Search anime">
+    </label>
+    <button id="settingsBtn" class="settings-button">⚙ Settings</button>
   </header>
 
   <main>
-    <section class="hero" aria-labelledby="hero-title">
-      <p class="eyebrow">YOUR NEXT OBSESSION</p>
-
-      <h1 id="hero-title">
-        Stories that<br>
-        <em>stay with you.</em>
-      </h1>
-
-      <p class="description">
-        Discover new worlds, unforgettable characters, and your next favorite story.
-      </p>
-
-      <a class="button" href="#discover">
-        Explore the library <span aria-hidden="true">↗</span>
-      </a>
-
-      <p class="hero-note">
-        Explore anime information and find available legal viewing options.
-      </p>
-    </section>
-
-    <section id="discover" class="library" aria-labelledby="discover-title">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">FIND YOUR NEXT MARATHON</p>
-          <h2 id="discover-title">Discover anime</h2>
-          <p class="description">
-            Explore popular series and save the ones you love.
-          </p>
+    <section class="hero" id="hero">
+      <div class="hero-art" aria-hidden="true"></div>
+      <div class="hero-copy">
+        <p class="eyebrow">✦ YOUR NEXT OBSESSION</p>
+        <h1>Stories that<br><em>stay with you.</em></h1>
+        <p class="hero-description">Discover your next favorite anime, explore new worlds, and keep your personal collection in one place.</p>
+        <div class="hero-actions">
+          <button class="button primary" id="exploreBtn">Explore library ↗</button>
+          <button class="button ghost" id="howBtn">How it works</button>
         </div>
-
-        <label class="dub-filter">
-          <input type="checkbox" id="dubOnly">
-          English dub only
-        </label>
+        <p class="microcopy">A personal anime discovery experience.</p>
       </div>
-
-      <p class="catalog-status" id="catalogStatus" aria-live="polite">
-        Getting the library ready...
-      </p>
-
-      <div id="catalog" class="catalog" aria-live="polite"></div>
     </section>
 
-    <section id="my-list" class="my-list" aria-labelledby="list-title">
-      <p class="eyebrow">SAVED FOR LATER</p>
-      <h2 id="list-title">My list</h2>
-      <p class="description">
-        Your favorites stay saved in this browser.
-      </p>
+    <section class="toolbar" id="library">
+      <div>
+        <p class="eyebrow muted">CURATED FOR YOUR MOOD</p>
+        <h2 id="sectionTitle">Discover anime</h2>
+        <p class="description" id="sectionDescription">Explore popular series and save the ones you love.</p>
+      </div>
+      <div class="filters">
+        <label class="dub-toggle">
+          <input type="checkbox" id="dubOnly">
+          <span>English dub only</span>
+        </label>
+        <select id="genreFilter" aria-label="Filter by genre">
+          <option value="all">All genres</option>
+          <option value="Action">Action</option>
+          <option value="Adventure">Adventure</option>
+          <option value="Comedy">Comedy</option>
+          <option value="Drama">Drama</option>
+          <option value="Fantasy">Fantasy</option>
+          <option value="Horror">Horror</option>
+          <option value="Romance">Romance</option>
+          <option value="Sci-Fi">Sci-Fi</option>
+        </select>
+      </div>
+    </section>
 
-      <div id="favorites" class="catalog"></div>
+    <section id="notice" class="notice" role="status" hidden></section>
+    <section class="catalog" id="catalog" aria-live="polite"></section>
+
+    <section class="library" id="favoritesSection" hidden>
+      <div class="section-heading">
+        <div><p class="eyebrow muted">YOUR COLLECTION</p><h2>My List</h2></div>
+      </div>
+      <section class="catalog" id="favorites"></section>
+    </section>
+
+    <section class="library" id="historySection" hidden>
+      <div class="section-heading">
+        <div><p class="eyebrow muted">PICK UP WHERE YOU LEFT OFF</p><h2>Recently Viewed</h2></div>
+      </div>
+      <section class="catalog" id="historyGrid"></section>
+    </section>
+
+    <section class="bottom-panel">
+      <div><p class="eyebrow muted">A NOTE ABOUT STREAMING</p><h2>Good stories.<br><em>Clear sources.</em></h2></div>
+      <p>Afterglow organizes anime information and your personal list. In-app playback requires a compatible video URL that you're authorized to use. Streaming services may restrict embedding.</p>
     </section>
   </main>
 
-  <dialog id="details" aria-label="Anime details">
-    <button
-      id="closeDetails"
-      class="close"
-      type="button"
-      aria-label="Close anime details"
-    >×</button>
+  <footer>
+    <a class="brand small" href="#"><span class="brand-mark">✦</span><span>afterglow<span class="dot">.</span></span></a>
+    <span>Made for late-night stories.</span>
+    <span>HTML · CSS · JavaScript</span>
+  </footer>
 
+  <dialog id="details" class="dialog details-dialog">
+    <button class="close" id="closeDetails" aria-label="Close details">×</button>
     <div id="detailContent"></div>
   </dialog>
 
-  <footer class="site-footer">
-    <div class="footer-inner">
-      <p><span class="footer-brand">afterglow.</span> Made for anime fans.</p>
-      <p>Anime data and artwork are provided by external services.</p>
+  <dialog id="playerDialog" class="dialog player-dialog">
+    <button class="close" id="closePlayer" aria-label="Close player">×</button>
+    <div class="player-heading">
+      <p class="eyebrow muted">AFTERGLOW PLAYER</p>
+      <h2 id="playerTitle">Now Playing</h2>
+      <p id="playerStatus" role="status">Choose a compatible video source.</p>
     </div>
-  </footer>
+    <video id="video" controls playsinline preload="metadata"></video>
+    <form id="sourceForm" class="source-form">
+      <label for="sourceUrl">Authorized direct video URL</label>
+      <input id="sourceUrl" type="url" placeholder="https://example.com/video.mp4" required>
+      <button class="button primary" type="submit">Load video</button>
+    </form>
+    <p class="source-help">Use a video URL you're permitted to play. This player cannot unlock protected streams or turn an ordinary streaming page into a video file.</p>
+  </dialog>
+
+  <dialog id="settingsDialog" class="dialog settings-dialog">
+    <button class="close" id="closeSettings" aria-label="Close settings">×</button>
+    <p class="eyebrow muted">MAKE IT YOURS</p>
+    <h2>Settings</h2>
+    <div class="setting-row">
+      <label for="appearance">Appearance</label>
+      <select id="appearance"><option value="dark">Dark</option><option value="light">Light</option><option value="system">System</option></select>
+    </div>
+    <div class="setting-row">
+      <label for="wallpaper">Wallpaper</label>
+      <select id="wallpaper">
+        <option value="glass">Frosted Glass</option>
+        <option value="neon">Neon City</option>
+        <option value="sunset">Sunset Beach</option>
+        <option value="galaxy">Galaxy</option>
+      </select>
+    </div>
+    <label class="setting-check"><input type="checkbox" id="glowEnabled" checked> Neon glow effects</label>
+    <label class="setting-check"><input type="checkbox" id="motionEnabled" checked> Motion effects</label>
+    <button class="button primary" id="saveSettings">Save Settings</button>
+  </dialog>
+
+  <dialog id="infoDialog" class="dialog">
+    <button class="close" data-close-info aria-label="Close">×</button>
+    <p class="eyebrow muted">HOW IT WORKS</p>
+    <h2>Your anime space.</h2>
+    <p>Search anime, filter the catalog, save favorites, and open titles for details. If you have an authorized direct video URL, you can try it in the in-app player.</p>
+    <p class="source-help">Anime information and artwork do not include episode video streams.</p>
+    <button class="button primary" data-close-info>Got it</button>
+  </dialog>
 
   <script src="app.js"></script>
 </body>
