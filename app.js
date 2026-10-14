@@ -1,796 +1,549 @@
 
-/* Project Afterglow — complete app.js */
-(() => {
-  "use strict";
+"use strict";
 
-  const API = "https://api.jikan.moe/v4";
-  const ANILIST_API = "https://graphql.anilist.co";
+const API = "https://api.jikan.moe/v4";
 
-  const FAV_KEY = "afterglow-favorites";
-  const HISTORY_KEY = "afterglow-history";
-  const SETTINGS_KEY = "afterglow-settings";
+const $ = selector => document.querySelector(selector);
 
-  const $ = (selector, root = document) =>
-    root.querySelector(selector);
+const catalog = $("#catalog");
+const favoritesGrid = $("#favorites");
+const historyGrid = $("#historyGrid");
+const searchInput = $("#search");
+const dubOnly = $("#dubOnly");
+const genreFilter = $("#genreFilter");
+const details = $("#details");
+const detailContent = $("#detailContent");
+const playerDialog = $("#playerDialog");
+const video = $("#video");
 
-  const searchInput = $("#search");
-  const catalog = $("#catalog");
-  const detailsDialog = $("#details");
-  const detailContent = $("#detailContent");
-  const favoritesRoot = $("#favorites");
-  const hero = $(".hero");
+let animeList = [];
+let favorites = readList("afterglow-favorites");
+let history = readList("afterglow-history");
+let activeAnime = null;
+let featuredIndex = 0;
+let featuredTimer = null;
+let currentView = "home";
+let loading = true;
+let loadError = "";
 
-  let animeList = [];
-  let featuredIndex = 0;
-  let featuredTimer = null;
-  let currentFilter = "";
+const knownDubTitles = [
+  "attack on titan", "spy x family", "demon slayer",
+  "my hero academia", "death note", "haikyu!!",
+  "fullmetal alchemist: brotherhood", "jujutsu kaisen",
+  "naruto", "one piece", "solo leveling",
+  "mob psycho 100", "hunter x hunter", "black clover",
+  "dr. stone", "blue lock", "chainsaw man"
+];
 
-  const defaultSettings = {
-    wallpaper: "neon",
-    appearance: "dark",
-    glow: true,
-    particles: true,
-    motion: true
-  };
-
-  let settings = { ...defaultSettings };
-
-  function safeRead(key, fallback) {
-    try {
-      const value = JSON.parse(localStorage.getItem(key));
-      return value ?? fallback;
-    } catch {
-      return fallback;
-    }
+function readList(key) {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
   }
+}
 
-  function safeWrite(key, value) {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch (error) {
-      console.warn("Afterglow could not save settings:", error);
-    }
+function saveData() {
+  try {
+    localStorage.setItem("afterglow-favorites", JSON.stringify(favorites));
+    localStorage.setItem("afterglow-history", JSON.stringify(history));
+  } catch (error) {
+    console.warn("Could not save Afterglow data.", error);
   }
+}
 
-  const favorites = () => safeRead(FAV_KEY, []);
-  const history = () => safeRead(HISTORY_KEY, []);
+function escapeHTML(value) {
+  return String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;",
+    '"': "&quot;", "'": "&#39;"
+  })[char]);
+}
 
-  function escapeHTML(value = "") {
-    return String(value).replace(/[&<>"']/g, char => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#39;"
-    })[char]);
-  }
+function titleOf(anime) {
+  return anime.title_english || anime.title || "Untitled anime";
+}
 
-  function idOf(anime) {
-    return String(anime?.mal_id ?? anime?.id ?? "");
-  }
+function posterOf(anime) {
+  return anime.images?.webp?.large_image_url ||
+    anime.images?.jpg?.large_image_url ||
+    anime.images?.webp?.image_url || "";
+}
 
-  function titleOf(anime) {
-    return anime?.title_english ||
-      anime?.title?.english ||
-      anime?.title?.romaji ||
-      (typeof anime?.title === "string" ? anime.title : "") ||
-      anime?.title?.native ||
-      "Untitled anime";
-  }
+function knownDub(anime) {
+  return knownDubTitles.includes(titleOf(anime).trim().toLowerCase());
+}
 
-  function imageOf(anime) {
-    return anime?.images?.webp?.large_image_url ||
-      anime?.images?.jpg?.large_image_url ||
-      anime?.coverImage?.extraLarge ||
-      anime?.coverImage?.large ||
-      "";
-  }
+function emptyMessage(message) {
+  return `<p class="empty">${escapeHTML(message)}</p>`;
+}
 
-  function scoreOf(anime) {
-    return Number(anime?.score || anime?.averageScore / 10 || 0);
-  }
+function genresOf(anime) {
+  return (anime.genres || []).map(item => item.name);
+}
 
-  function synopsisOf(anime) {
-    const text = anime?.synopsis || anime?.description || "";
-    return String(text).replace(/<[^>]*>/g, "") ||
-      "No description is available yet.";
-  }
+function animeCard(anime) {
+  const id = Number(anime.mal_id);
+  const title = titleOf(anime);
+  const poster = posterOf(anime);
+  const saved = favorites.includes(id);
+  const year = anime.year || anime.aired?.prop?.from?.year || "Year unknown";
+  const genres = genresOf(anime).slice(0, 2).join(" · ") || "Anime";
 
-  function yearOf(anime) {
-    return anime?.year || anime?.seasonYear ||
-      anime?.aired?.prop?.from?.year || "";
-  }
-
-  function legalSearch(title) {
-    return "https://www.justwatch.com/us/search?q=" +
-      encodeURIComponent(title);
-  }
-
-  function normalizeAniList(item) {
-    return {
-      mal_id: item.id,
-      title: item.title?.romaji || item.title?.english ||
-        item.title?.native || "Untitled anime",
-      title_english: item.title?.english || "",
-      synopsis: item.description?.replace(/<[^>]*>/g, "") || "",
-      score: item.averageScore ? item.averageScore / 10 : 0,
-      episodes: item.episodes || null,
-      year: item.seasonYear || null,
-      status: item.status || "",
-      images: {
-        webp: {
-          large_image_url: item.coverImage?.extraLarge ||
-            item.coverImage?.large || ""
-        }
-      },
-      genres: item.genres || [],
-      source: "AniList"
-    };
-  }
-
-  async function fetchJSON(url, options = {}) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
-
-    try {
-      const response = await fetch(url, {
-        ...options,
-        signal: controller.signal
-      });
-
-      if (!response.ok) {
-        throw new Error("Request failed: " + response.status);
-      }
-
-      return await response.json();
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-
-  function setStatus(message, error = false) {
-    let status = $("#sourceStatus");
-
-    if (!status) {
-      status = document.createElement("p");
-      status.id = "sourceStatus";
-      status.className = "source-status";
-      ($("#discover") || catalog?.parentElement)?.append(status);
-    }
-
-    if (status) {
-      status.textContent = message;
-      status.classList.toggle("is-error", error);
-    }
-  }
-
-  async function loadAnime() {
-    setStatus("Loading anime catalog…");
-
-    try {
-      const result = await fetchJSON(
-        `${API}/top/anime?limit=24&sfw=true`
-      );
-
-      animeList = (result.data || []).map(item => ({
-        ...item,
-        source: "Jikan"
-      }));
-
-      if (!animeList.length) throw new Error("No results");
-
-      setStatus("Catalog updated successfully");
-      renderAll();
-      renderFeatured();
-    } catch (firstError) {
-      try {
-        const query = `
-          query {
-            Page(page: 1, perPage: 24) {
-              media(type: ANIME, sort: POPULARITY_DESC, isAdult: false) {
-                id
-                title { romaji english native }
-                description
-                averageScore
-                episodes
-                seasonYear
-                status
-                coverImage { large extraLarge }
-                genres
-              }
-            }
-          }
-        `;
-
-        const result = await fetchJSON(ANILIST_API, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-          },
-          body: JSON.stringify({ query })
-        });
-
-        animeList = (result.data?.Page?.media || [])
-          .map(normalizeAniList);
-
-        if (!animeList.length) throw new Error("No backup results");
-
-        setStatus("Catalog loaded using backup source");
-        renderAll();
-        renderFeatured();
-      } catch (error) {
-        console.error("Anime catalog failed to load:", error);
-        setStatus("Catalog unavailable. Check your connection and retry.", true);
-
-        if (catalog) {
-          catalog.innerHTML = `
-            <div class="empty-state">
-              <h3>Couldn't load anime</h3>
-              <p>Check your connection and try again.</p>
-              <button class="action-button" id="retryCatalog">
-                Try again
-              </button>
-            </div>`;
-        }
-
-        $("#retryCatalog")?.addEventListener("click", loadAnime);
-      }
-    }
-  }
-
-  function matchesFilter(anime) {
-    const query = currentFilter.trim().toLowerCase();
-    if (!query) return true;
-
-    return [
-      titleOf(anime),
-      anime.title_english,
-      anime.title,
-      synopsisOf(anime),
-      ...(anime.genres || []).map(g =>
-        typeof g === "string" ? g : g.name
-      )
-    ].join(" ").toLowerCase().includes(query);
-  }
-
-  function cardMarkup(anime) {
-    const id = idOf(anime);
-    const title = titleOf(anime);
-    const image = imageOf(anime);
-    const saved = favorites().some(item => idOf(item) === id);
-
-    return `
-      <article class="anime-card" data-anime-id="${escapeHTML(id)}">
-        <button class="poster-button"
-          type="button"
-          data-action="details"
-          data-id="${escapeHTML(id)}"
-          aria-label="View ${escapeHTML(title)} details">
-          ${
-            image
-              ? `<img class="poster"
-                   src="${escapeHTML(image)}"
-                   alt="${escapeHTML(title)}"
-                   loading="lazy"
-                   onerror="this.style.display='none';this.nextElementSibling.hidden=false">
-                 <span class="poster-placeholder" hidden>✦</span>`
-              : `<span class="poster-placeholder">✦</span>`
-          }
-          <span class="poster-overlay">
-            <span>View details ↗</span>
-          </span>
+  return `
+    <article class="anime-card">
+      <button class="poster" type="button" data-open="${id}"
+        aria-label="View ${escapeHTML(title)}">
+        ${poster ? `<img src="${escapeHTML(poster)}" alt="${escapeHTML(title)} poster" loading="lazy">` : ""}
+        <span class="poster-label">AFTERGLOW</span>
+        <span class="poster-title">${escapeHTML(title)}</span>
+      </button>
+      <div class="card-info">
+        <h3>${escapeHTML(title)}</h3>
+        <span class="rating">★ ${anime.score ? Number(anime.score).toFixed(1) : "N/A"}</span>
+      </div>
+      <div class="card-meta">${escapeHTML(String(year))} · ${escapeHTML(genres)}</div>
+      <span class="card-badge">${knownDub(anime) ? "Dub release known" : "Dub info unconfirmed"}</span>
+      <div class="card-actions">
+        <button type="button" data-open="${id}">Details</button>
+        <button type="button" data-favorite="${id}" aria-pressed="${saved}">
+          ${saved ? "★ Saved" : "☆ My List"}
         </button>
+      </div>
+    </article>`;
+}
 
-        <div class="card-copy">
-          <div class="card-title-row">
-            <h3>${escapeHTML(title)}</h3>
-            <button type="button"
-              class="favorite-button ${saved ? "is-favorite" : ""}"
-              data-action="favorite"
-              data-id="${escapeHTML(id)}"
-              aria-label="${saved ? "Remove from" : "Add to"} favorites">
-              ${saved ? "★" : "☆"}
-            </button>
-          </div>
+function filteredAnime() {
+  const query = (searchInput?.value || "").trim().toLowerCase();
+  const genre = genreFilter?.value || "all";
 
-          <p class="card-meta">
-            ${scoreOf(anime) ? "★ " + scoreOf(anime).toFixed(1) : "Score unavailable"}
-            ${yearOf(anime) ? " · " + escapeHTML(yearOf(anime)) : ""}
-            ${anime.episodes ? " · " + escapeHTML(anime.episodes) + " eps" : ""}
-          </p>
+  return animeList.filter(anime => {
+    const title = titleOf(anime).toLowerCase();
+    const genres = genresOf(anime);
+    const matchesSearch = title.includes(query) ||
+      genres.join(" ").toLowerCase().includes(query);
+    const matchesGenre = genre === "all" ||
+      genres.some(item => item.toLowerCase() === genre.toLowerCase());
+    const matchesDub = !dubOnly?.checked || knownDub(anime);
 
-          <button type="button" class="text-link"
-            data-action="details" data-id="${escapeHTML(id)}">
-            Explore anime →
-          </button>
+    return matchesSearch && matchesGenre && matchesDub;
+  });
+}
 
-          <a class="text-link watch-link"
-            href="${legalSearch(title)}"
-            target="_blank"
-            rel="noopener noreferrer">
-            Find where to watch ↗
-          </a>
-        </div>
-      </article>`;
+function renderCatalog() {
+  if (!catalog) return;
+
+  if (loading) {
+    catalog.innerHTML = emptyMessage("Loading anime...");
+    return;
   }
 
-  function renderCatalog() {
-    if (!catalog) return;
-
-    const filtered = animeList.filter(matchesFilter);
-
-    catalog.innerHTML = filtered.length
-      ? filtered.map(cardMarkup).join("")
-      : `<div class="empty-state">
-           <h3>No matches found</h3>
-           <p>Try another title or search term.</p>
-         </div>`;
+  if (loadError && !animeList.length) {
+    catalog.innerHTML = `${emptyMessage(loadError)}
+      <button class="button primary" id="retryCatalog">Try again</button>`;
+    return;
   }
 
-  function renderFavorites() {
-    if (!favoritesRoot) return;
+  const filtered = filteredAnime();
+  catalog.innerHTML = filtered.length
+    ? filtered.map(animeCard).join("")
+    : emptyMessage("No matches. Try another search or filter.");
 
-    const list = favorites();
+  renderFavorites();
+  renderHistory();
+}
 
-    favoritesRoot.innerHTML = list.length
-      ? list.map(cardMarkup).join("")
-      : `<div class="empty-state compact-empty">
-           <p>Your saved anime will appear here.</p>
-           <span class="empty-star">✦</span>
-         </div>`;
+function renderFavorites() {
+  if (!favoritesGrid) return;
+  const saved = animeList.filter(anime =>
+    favorites.includes(Number(anime.mal_id))
+  );
+  favoritesGrid.innerHTML = saved.length
+    ? saved.map(animeCard).join("")
+    : emptyMessage("Your list is empty. Save an anime to find it here.");
+}
+
+function renderHistory() {
+  if (!historyGrid) return;
+  const recent = history.map(id =>
+    animeList.find(anime => Number(anime.mal_id) === Number(id))
+  ).filter(Boolean);
+
+  historyGrid.innerHTML = recent.length
+    ? recent.map(animeCard).join("")
+    : emptyMessage("Open an anime to add it to your recent history.");
+}
+
+function addToHistory(id) {
+  history = [id, ...history.filter(item => Number(item) !== id)].slice(0, 12);
+  saveData();
+  renderHistory();
+}
+
+function openDetails(id) {
+  const anime = animeList.find(item => Number(item.mal_id) === id);
+  if (!anime || !details || !detailContent) return;
+
+  activeAnime = anime;
+  addToHistory(id);
+
+  const title = titleOf(anime);
+  const poster = posterOf(anime);
+  const genres = genresOf(anime).join(" · ") || "Anime";
+  const saved = favorites.includes(id);
+
+  detailContent.innerHTML = `
+    <div class="detail-hero">
+      ${poster ? `<img class="detail-poster" src="${escapeHTML(poster)}" alt="${escapeHTML(title)} poster">` : ""}
+      <div class="detail-copy">
+        <p class="eyebrow muted">ANIME DETAILS</p>
+        <h2>${escapeHTML(title)}</h2>
+        <p>★ ${anime.score ? Number(anime.score).toFixed(1) : "Not rated"} / 10 · ${escapeHTML(String(anime.year || anime.aired?.prop?.from?.year || "Year unknown"))}</p>
+        <p>${escapeHTML(genres)}</p>
+        <p>${escapeHTML(anime.synopsis || "No description available.")}</p>
+      </div>
+    </div>
+
+    <div class="detail-facts">
+      <span><strong>Episodes</strong>${escapeHTML(String(anime.episodes || "Unknown"))}</span>
+      <span><strong>Status</strong>${escapeHTML(anime.status || "Unknown")}</span>
+    </div>
+
+    <div class="watch-panel">
+      <p class="eyebrow">WATCH OPTIONS</p>
+      <h3>Watch inside Afterglow</h3>
+      <p>Choose a compatible, authorized direct video URL to play it here.</p>
+      <div class="detail-actions">
+        <button class="button primary" id="playInside">▶ Open in player</button>
+        <button class="button ghost" id="detailFavorite">${saved ? "★ In My List" : "☆ Add to My List"}</button>
+        <a class="button secondary" href="https://www.justwatch.com/us/search?q=${encodeURIComponent(title)}" target="_blank" rel="noopener noreferrer">Find legal viewing options ↗</a>
+      </div>
+      <p class="source-help">The anime catalog provides details and artwork, not episode video files.</p>
+    </div>`;
+
+  details.showModal();
+
+  $("#playInside")?.addEventListener("click", () => openPlayer(title));
+  $("#detailFavorite")?.addEventListener("click", () => toggleFavorite(id));
+}
+
+function toggleFavorite(id) {
+  favorites = favorites.includes(id)
+    ? favorites.filter(item => item !== id)
+    : [...favorites, id];
+
+  saveData();
+  renderCatalog();
+
+  if (activeAnime && Number(activeAnime.mal_id) === id && details?.open) {
+    openDetails(id);
   }
+}
 
-  function renderHistory() {
-    let section = $("#recentlyViewed");
+function renderFeatured() {
+  const hero = $("#hero");
+  if (!hero || !animeList.length) return;
 
-    if (!section) {
-      const main = $("main");
-      if (!main) return;
+  const featured = animeList.filter(posterOf).slice(0, 8);
+  if (!featured.length) return;
 
-      section = document.createElement("section");
-      section.id = "recentlyViewed";
-      section.className = "library-section";
-      section.innerHTML = `
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">PICK UP WHERE YOU LEFT OFF</p>
-            <h2>Recently viewed</h2>
-          </div>
-        </div>
-        <div id="historyCards" class="anime-grid"></div>`;
+  featuredIndex = featuredIndex % featured.length;
+  const anime = featured[featuredIndex];
+  const title = titleOf(anime);
+  const poster = posterOf(anime);
 
-      const favoritesSection = $("#my-list");
-      if (favoritesSection) favoritesSection.before(section);
-      else main.append(section);
-    }
+  hero.classList.add("featured-hero");
+  hero.innerHTML = `
+    <img class="featured-backdrop" src="${escapeHTML(poster)}" alt="">
+    <div class="featured-shade"></div>
+    <div class="featured-content">
+      <p class="eyebrow">FEATURED ANIME · ${featuredIndex + 1} / ${featured.length}</p>
+      <h1>${escapeHTML(title)}</h1>
+      <p class="featured-description">${escapeHTML(anime.synopsis || "Discover your next favorite story.")}</p>
+      <p class="hero-note">★ ${anime.score ? Number(anime.score).toFixed(1) : "Not rated"}</p>
+      <div class="featured-controls">
+        <button class="button primary" id="featuredPlay">View details ↗</button>
+        <button class="button ghost" id="featuredPrev" aria-label="Previous anime">‹</button>
+        <button class="button ghost" id="featuredNext" aria-label="Next anime">›</button>
+      </div>
+      <div class="featured-dots">
+        ${featured.map((item, index) => `
+          <button class="${index === featuredIndex ? "active" : ""}"
+            data-feature-index="${index}" aria-label="Show ${escapeHTML(titleOf(item))}"></button>
+        `).join("")}
+      </div>
+    </div>`;
 
-    const target = $("#historyCards");
-    if (!target) return;
+  $("#featuredPlay")?.addEventListener("click", () =>
+    openDetails(Number(anime.mal_id))
+  );
+  $("#featuredPrev")?.addEventListener("click", () => changeFeatured(-1));
+  $("#featuredNext")?.addEventListener("click", () => changeFeatured(1));
 
-    const recent = history().slice(0, 6);
-
-    target.innerHTML = recent.length
-      ? recent.map(cardMarkup).join("")
-      : `<div class="empty-state compact-empty">
-           <p>Anime you explore will show up here.</p>
-         </div>`;
-  }
-
-  function renderAll() {
-    renderCatalog();
-    renderFavorites();
-    renderHistory();
-  }
-
-  function getAnime(id) {
-    return animeList.find(item => idOf(item) === String(id)) ||
-      favorites().find(item => idOf(item) === String(id)) ||
-      history().find(item => idOf(item) === String(id));
-  }
-
-  function openDetails(id) {
-    const anime = getAnime(id);
-    if (!anime || !detailContent || !detailsDialog) return;
-
-    const title = titleOf(anime);
-    const image = imageOf(anime);
-    const genres = (anime.genres || [])
-      .map(genre => typeof genre === "string" ? genre : genre.name)
-      .filter(Boolean);
-    const saved = favorites().some(item => idOf(item) === idOf(anime));
-
-    detailContent.innerHTML = `
-      <div class="detail-layout">
-        <div class="detail-poster-wrap">
-          ${
-            image
-              ? `<img class="detail-poster"
-                   src="${escapeHTML(image)}"
-                   alt="${escapeHTML(title)}">`
-              : `<div class="detail-poster poster-placeholder">✦</div>`
-          }
-        </div>
-
-        <div class="detail-copy">
-          <p class="eyebrow">ANIME DETAILS</p>
-          <h2>${escapeHTML(title)}</h2>
-
-          <p class="detail-meta">
-            ${scoreOf(anime) ? "★ " + scoreOf(anime).toFixed(1) + " / 10" : "Score unavailable"}
-            ${yearOf(anime) ? " · " + escapeHTML(yearOf(anime)) : ""}
-            ${anime.episodes ? " · " + escapeHTML(anime.episodes) + " episodes" : ""}
-          </p>
-
-          ${
-            genres.length
-              ? `<div class="genre-list">
-                   ${genres.map(g => `<span>${escapeHTML(g)}</span>`).join("")}
-                 </div>`
-              : ""
-          }
-
-          <p class="detail-synopsis">${escapeHTML(synopsisOf(anime))}</p>
-
-          <div class="detail-actions">
-            <a class="action-button primary-action"
-              href="${legalSearch(title)}"
-              target="_blank"
-              rel="noopener noreferrer">
-              Find legal viewing options ↗
-            </a>
-
-            <button type="button"
-              class="action-button secondary-action"
-              data-action="favorite"
-              data-id="${escapeHTML(idOf(anime))}">
-              ${saved ? "★ Saved to My List" : "☆ Add to My List"}
-            </button>
-          </div>
-
-          <p class="legal-note">
-            Availability depends on your region and subscription.
-            This link searches for licensed viewing options.
-          </p>
-        </div>
-      </div>`;
-
-    const previous = history().filter(item => idOf(item) !== idOf(anime));
-    safeWrite(HISTORY_KEY, [
-      { ...anime, viewedAt: Date.now() },
-      ...previous
-    ].slice(0, 12));
-
-    renderHistory();
-
-    if (typeof detailsDialog.showModal === "function") {
-      if (!detailsDialog.open) detailsDialog.showModal();
-    } else {
-      detailsDialog.setAttribute("open", "");
-    }
-  }
-
-  function toggleFavorite(id) {
-    const anime = getAnime(id);
-    if (!anime) return;
-
-    const list = favorites();
-    const exists = list.some(item => idOf(item) === String(id));
-
-    safeWrite(FAV_KEY, exists
-      ? list.filter(item => idOf(item) !== String(id))
-      : [{ ...anime }, ...list]);
-
-    renderAll();
-
-    if (detailsDialog?.open) openDetails(id);
-  }
-
-  function renderFeatured() {
-    if (!animeList.length) return;
-
-    const anime = animeList[featuredIndex % animeList.length];
-    const titleEl = $("#heroTitle") || $(".hero h1") || $(".hero h2");
-    const descriptionEl = $("#heroDescription") || $(".hero p");
-    const imageEl = $("#heroImage") || $(".hero img");
-    const explore = $("#heroExplore") || $(".hero [data-action='details']");
-    const dots = $("#heroDots");
-
-    if (titleEl) titleEl.textContent = titleOf(anime);
-
-    if (descriptionEl) {
-      const synopsis = synopsisOf(anime);
-      descriptionEl.textContent = synopsis.slice(0, 220) +
-        (synopsis.length > 220 ? "…" : "");
-    }
-
-    if (imageEl && imageOf(anime)) {
-      imageEl.src = imageOf(anime);
-      imageEl.alt = titleOf(anime);
-      imageEl.onerror = () => {
-        imageEl.style.visibility = "hidden";
-      };
-    } else if (hero && imageOf(anime)) {
-      hero.style.setProperty(
-        "--hero-art",
-        `url("${imageOf(anime)}")`
-      );
-    }
-
-    if (explore) {
-      explore.dataset.action = "details";
-      explore.dataset.id = idOf(anime);
-      if (explore.tagName === "A") explore.href = "#discover";
-    }
-
-    if (dots) {
-      dots.innerHTML = animeList.slice(0, 5).map((_, index) => `
-        <button type="button"
-          class="hero-dot ${index === featuredIndex % 5 ? "active" : ""}"
-          data-feature-index="${index}"
-          aria-label="Featured anime ${index + 1}">
-        </button>`).join("");
-    }
-  }
-
-  function setupFeaturedRotation() {
-    $("#heroNext")?.addEventListener("click", () => {
-      featuredIndex = (featuredIndex + 1) % Math.max(animeList.length, 1);
+  hero.querySelectorAll("[data-feature-index]").forEach(button => {
+    button.addEventListener("click", () => {
+      featuredIndex = Number(button.dataset.featureIndex);
       renderFeatured();
+      startFeaturedRotation();
     });
+  });
+}
 
-    $("#heroPrevious")?.addEventListener("click", () => {
-      featuredIndex = (featuredIndex - 1 + animeList.length) %
-        Math.max(animeList.length, 1);
-      renderFeatured();
-    });
+function changeFeatured(direction) {
+  const total = animeList.filter(posterOf).slice(0, 8).length;
+  if (!total) return;
+  featuredIndex = (featuredIndex + direction + total) % total;
+  renderFeatured();
+}
 
-    if (featuredTimer) clearInterval(featuredTimer);
+function startFeaturedRotation() {
+  if (featuredTimer) clearInterval(featuredTimer);
+  featuredTimer = setInterval(() => {
+    if (document.hidden || details?.open || playerDialog?.open) return;
+    changeFeatured(1);
+  }, 7000);
+}
 
-    featuredTimer = setInterval(() => {
-      if (!document.hidden && settings.motion && animeList.length > 1) {
-        featuredIndex = (featuredIndex + 1) % animeList.length;
-        renderFeatured();
-      }
-    }, 6500);
+async function fetchTimeout(url, options = {}, timeout = 10000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
   }
+}
 
-  function addSettingsAndSplash() {
-    const topbar = $(".topbar");
+async function loadCatalog() {
+  loading = true;
+  loadError = "";
+  renderCatalog();
 
-    if (topbar && !$("#settingsToggle")) {
-      const button = document.createElement("button");
-      button.id = "settingsToggle";
-      button.className = "settings-toggle";
-      button.type = "button";
-      button.setAttribute("aria-label", "Open appearance settings");
-      button.innerHTML = `<span aria-hidden="true">⚙</span><span class="settings-label">Settings</span>`;
-
-      const search = $("#search");
-      if (search) search.insertAdjacentElement("afterend", button);
-      else topbar.append(button);
+  try {
+    const response = await fetchTimeout(`${API}/top/anime?limit=24&sfw=true`);
+    if (!response.ok) throw new Error("Catalog request failed.");
+    const result = await response.json();
+    if (!Array.isArray(result.data) || !result.data.length) {
+      throw new Error("No anime returned.");
     }
+    animeList = result.data;
+  } catch (error) {
+    console.warn("Jikan failed; trying AniList.", error);
 
-    if (!$("#settingsPanel")) {
-      const panel = document.createElement("aside");
-      panel.id = "settingsPanel";
-      panel.className = "settings-panel";
-      panel.hidden = true;
-      panel.setAttribute("aria-label", "Appearance settings");
+    try {
+      const query = `query {
+        Page(page: 1, perPage: 24) {
+          media(type: ANIME, sort: POPULARITY_DESC, isAdult: false) {
+            id title { romaji english } coverImage { large }
+            description(asHtml: false) averageScore episodes
+            seasonYear genres status
+          }
+        }
+      }`;
 
-      panel.innerHTML = `
-        <div class="settings-head">
-          <div><p class="eyebrow">MAKE IT YOURS</p><h2>Appearance</h2></div>
-          <button type="button" class="icon-button" id="closeSettings" aria-label="Close settings">×</button>
-        </div>
-
-        <label class="setting-label">Wallpaper</label>
-        <div class="wallpaper-options">
-          <button type="button" class="wallpaper-choice neon" data-wallpaper="neon"><span>Neon City</span></button>
-          <button type="button" class="wallpaper-choice sunset" data-wallpaper="sunset"><span>Sunset Beach</span></button>
-          <button type="button" class="wallpaper-choice galaxy" data-wallpaper="galaxy"><span>Galaxy</span></button>
-          <button type="button" class="wallpaper-choice glass" data-wallpaper="glass"><span>Frosted Glass</span></button>
-        </div>
-
-        <label class="setting-label" for="appearanceChoice">Appearance mode</label>
-        <select id="appearanceChoice" class="settings-select">
-          <option value="dark">Dark</option>
-          <option value="light">Light</option>
-          <option value="system">Match device</option>
-        </select>
-
-        <div class="setting-switch"><span><strong>Glow effects</strong><small>Soft neon highlights</small></span><input type="checkbox" id="glowChoice"></div>
-        <div class="setting-switch"><span><strong>Floating particles</strong><small>Subtle background detail</small></span><input type="checkbox" id="particlesChoice"></div>
-        <div class="setting-switch"><span><strong>Motion effects</strong><small>Gentle movement and rotation</small></span><input type="checkbox" id="motionChoice"></div>
-        <p class="settings-footnote">Your choices are saved on this device.</p>`;
-
-      document.body.append(panel);
-    }
-
-    if (!$("#afterglowSplash") &&
-        !safeRead("afterglow-splash-seen", false)) {
-      const splash = document.createElement("div");
-      splash.id = "afterglowSplash";
-      splash.className = "splash-screen";
-      splash.innerHTML = `
-        <div class="splash-logo">✦</div>
-        <div class="splash-name">afterglow<span>.</span></div>
-        <p>Your next anime discovery starts here.</p>
-        <div class="splash-loader"><i></i></div>`;
-
-      document.body.append(splash);
-
-      window.setTimeout(() => {
-        splash.classList.add("splash-hidden");
-        safeWrite("afterglow-splash-seen", true);
-        window.setTimeout(() => splash.remove(), 500);
-      }, 1900);
-    }
-  }
-
-  function applySettings() {
-    const root = document.documentElement;
-
-    root.dataset.wallpaper = settings.wallpaper || "neon";
-    root.dataset.appearance = settings.appearance || "dark";
-
-    root.classList.toggle("no-glow", !settings.glow);
-    root.classList.toggle("no-particles", !settings.particles);
-    root.classList.toggle("no-motion", !settings.motion);
-
-    const appearance = $("#appearanceChoice");
-    if (appearance) appearance.value = settings.appearance || "dark";
-
-    const glow = $("#glowChoice");
-    if (glow) glow.checked = !!settings.glow;
-
-    const particles = $("#particlesChoice");
-    if (particles) particles.checked = !!settings.particles;
-
-    const motion = $("#motionChoice");
-    if (motion) motion.checked = !!settings.motion;
-
-    $("#settingsPanel")?.querySelectorAll("[data-wallpaper]").forEach(button => {
-      button.classList.toggle(
-        "selected",
-        button.dataset.wallpaper === settings.wallpaper
-      );
-    });
-
-    safeWrite(SETTINGS_KEY, settings);
-  }
-
-  function setupSettings() {
-    const saved = safeRead(SETTINGS_KEY, {});
-    settings = { ...defaultSettings, ...saved };
-
-    // Only accept known values from saved settings.
-    if (!["neon", "sunset", "galaxy", "glass"].includes(settings.wallpaper)) {
-      settings.wallpaper = "neon";
-    }
-    if (!["dark", "light", "system"].includes(settings.appearance)) {
-      settings.appearance = "dark";
-    }
-
-    applySettings();
-
-    $("#settingsToggle")?.addEventListener("click", event => {
-      event.stopPropagation();
-      const panel = $("#settingsPanel");
-      if (!panel) return;
-      panel.hidden = !panel.hidden;
-      panel.classList.toggle("panel-open", !panel.hidden);
-    });
-
-    $("#closeSettings")?.addEventListener("click", () => {
-      const panel = $("#settingsPanel");
-      if (!panel) return;
-      panel.hidden = true;
-      panel.classList.remove("panel-open");
-    });
-
-    $("#settingsPanel")?.addEventListener("click", event => {
-      const button = event.target.closest("[data-wallpaper]");
-      if (!button) return;
-      settings.wallpaper = button.dataset.wallpaper;
-      applySettings();
-    });
-
-    $("#appearanceChoice")?.addEventListener("change", event => {
-      settings.appearance = event.target.value;
-      applySettings();
-    });
-
-    [
-      ["glowChoice", "glow"],
-      ["particlesChoice", "particles"],
-      ["motionChoice", "motion"]
-    ].forEach(([id, key]) => {
-      $("#" + id)?.addEventListener("change", event => {
-        settings[key] = event.target.checked;
-        applySettings();
+      const response = await fetchTimeout("https://graphql.anilist.co", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query })
       });
-    });
 
-    document.addEventListener("click", event => {
-      const panel = $("#settingsPanel");
-      const toggle = $("#settingsToggle");
+      if (!response.ok) throw new Error("Backup catalog request failed.");
+      const result = await response.json();
+      const items = result.data?.Page?.media || [];
+      if (!items.length) throw new Error("No anime returned.");
 
-      if (panel && !panel.hidden &&
-          !panel.contains(event.target) &&
-          !toggle?.contains(event.target)) {
-        panel.hidden = true;
-        panel.classList.remove("panel-open");
-      }
-    });
-
-    document.addEventListener("keydown", event => {
-      const panel = $("#settingsPanel");
-      if (event.key === "Escape" && panel && !panel.hidden) {
-        panel.hidden = true;
-        panel.classList.remove("panel-open");
-      }
-    });
-
-    // Match the device's theme when that option is selected.
-    const media = window.matchMedia?.("(prefers-color-scheme: light)");
-    const syncSystemTheme = () => {
-      if (settings.appearance === "system") {
-        document.documentElement.dataset.appearance =
-          media?.matches ? "light" : "dark";
-      }
-    };
-
-    media?.addEventListener?.("change", syncSystemTheme);
-    syncSystemTheme();
+      animeList = items.map(item => ({
+        mal_id: item.id,
+        title: item.title?.romaji || item.title?.english || "Untitled anime",
+        title_english: item.title?.english || "",
+        images: { webp: { large_image_url: item.coverImage?.large || "" } },
+        score: item.averageScore ? item.averageScore / 10 : null,
+        year: item.seasonYear,
+        synopsis: item.description || "",
+        episodes: item.episodes,
+        status: item.status,
+        genres: (item.genres || []).map(name => ({ name }))
+      }));
+    } catch (backupError) {
+      console.error("Catalog sources failed.", backupError);
+      animeList = [];
+      loadError = "The anime catalog could not connect. Check your internet and try again.";
+    }
   }
 
-  document.addEventListener("click", event => {
-    const action = event.target.closest("[data-action]");
+  loading = false;
+  renderCatalog();
 
-    if (action) {
-      const id = action.dataset.id;
+  if (animeList.length) {
+    renderFeatured();
+    startFeaturedRotation();
+  }
+}
 
-      if (action.dataset.action === "details") {
-        event.preventDefault();
-        openDetails(id);
-      }
+/* In-app video player */
+function openPlayer(title) {
+  $("#playerTitle").textContent = title || "Now Playing";
+  $("#playerStatus").textContent = "Enter a compatible, authorized video URL below.";
+  $("#sourceUrl").value = "";
+  stopVideo();
+  if (!playerDialog.open) playerDialog.showModal();
+}
 
-      if (action.dataset.action === "favorite") {
-        event.preventDefault();
-        toggleFavorite(id);
-      }
-    }
+function stopVideo() {
+  video.pause();
+  video.removeAttribute("src");
+  video.load();
+}
 
-    const dot = event.target.closest("[data-feature-index]");
-    if (dot) {
-      featuredIndex = Number(dot.dataset.featureIndex) || 0;
-      renderFeatured();
-    }
+$("#sourceForm")?.addEventListener("submit", event => {
+  event.preventDefault();
+
+  let url;
+  try {
+    url = new URL($("#sourceUrl").value.trim());
+  } catch {
+    $("#playerStatus").textContent = "Enter a valid video URL.";
+    return;
+  }
+
+  if (!["https:", "http:"].includes(url.protocol)) {
+    $("#playerStatus").textContent = "Only HTTP and HTTPS video URLs are supported.";
+    return;
+  }
+
+  stopVideo();
+  video.src = url.href;
+  video.load();
+  $("#playerStatus").textContent = "Loading video…";
+
+  video.play().then(() => {
+    $("#playerStatus").textContent = "Playing inside Afterglow.";
+  }).catch(() => {
+    $("#playerStatus").textContent =
+      "Video loaded. Press Play, or check whether the source permits playback.";
   });
+});
 
-  searchInput?.addEventListener("input", event => {
-    currentFilter = event.target.value;
-    renderCatalog();
+video?.addEventListener("error", () => {
+  $("#playerStatus").textContent =
+    "This video could not play. The URL may not be a direct video source or may block playback.";
+});
+
+$("#closePlayer")?.addEventListener("click", () => playerDialog.close());
+playerDialog?.addEventListener("close", stopVideo);
+
+document.addEventListener("click", event => {
+  const openButton = event.target.closest("[data-open]");
+  const favoriteButton = event.target.closest("[data-favorite]");
+
+  if (openButton) {
+    openDetails(Number(openButton.dataset.open));
+    return;
+  }
+
+  if (favoriteButton) {
+    toggleFavorite(Number(favoriteButton.dataset.favorite));
+    return;
+  }
+
+  if (event.target.id === "retryCatalog") loadCatalog();
+
+  if (event.target.closest("[data-close-info]")) {
+    $("#infoDialog").close();
+  }
+});
+
+$("#closeDetails")?.addEventListener("click", () => details.close());
+details?.addEventListener("click", event => {
+  if (event.target === details) details.close();
+});
+
+searchInput?.addEventListener("input", renderCatalog);
+dubOnly?.addEventListener("change", renderCatalog);
+genreFilter?.addEventListener("change", renderCatalog);
+
+$("#exploreBtn")?.addEventListener("click", () =>
+  $("#library").scrollIntoView({ behavior: "smooth" })
+);
+$("#howBtn")?.addEventListener("click", () => $("#infoDialog").showModal());
+
+document.querySelectorAll("[data-close-info]").forEach(button => {
+  button.addEventListener("click", () => $("#infoDialog").close());
+});
+
+document.querySelectorAll("[data-view]").forEach(button => {
+  button.addEventListener("click", () => {
+    currentView = button.dataset.view;
+
+    document.querySelectorAll("[data-view]").forEach(item =>
+      item.classList.toggle("active", item === button)
+    );
+
+    catalog.hidden = currentView !== "home";
+    $("#favoritesSection").hidden = currentView !== "favorites";
+    $("#historySection").hidden = currentView !== "history";
+
+    $("#sectionTitle").textContent = currentView === "favorites"
+      ? "My List"
+      : currentView === "history" ? "Recently Viewed" : "Discover anime";
+
+    $("#sectionDescription").textContent = currentView === "favorites"
+      ? "The anime you saved."
+      : currentView === "history" ? "Titles you recently opened." : "Explore popular series and save the ones you love.";
+
+    if (currentView === "favorites") renderFavorites();
+    if (currentView === "history") renderHistory();
+
+    $("#library").scrollIntoView({ behavior: "smooth" });
   });
+});
 
-  $("#dubOnly")?.addEventListener("change", event => {
-    setStatus(event.target.checked
-      ? "Dub availability is not verified by the current catalog."
-      : "Catalog ready");
-  });
+/* Settings */
+const settingsKeys = {
+  appearance: "afterglow-appearance",
+  wallpaper: "afterglow-wallpaper",
+  glow: "afterglow-glow",
+  motion: "afterglow-motion"
+};
 
-  detailsDialog?.addEventListener("click", event => {
-    if (event.target === detailsDialog) detailsDialog.close();
-  });
+function loadSettings() {
+  const appearance = localStorage.getItem(settingsKeys.appearance) || "dark";
+  const wallpaper = localStorage.getItem(settingsKeys.wallpaper) || "glass";
+  const glow = localStorage.getItem(settingsKeys.glow) !== "false";
+  const motion = localStorage.getItem(settingsKeys.motion) !== "false";
 
-  $("#closeDetails")?.addEventListener("click", () => {
-    detailsDialog?.close();
-  });
+  $("#appearance").value = appearance;
+  $("#wallpaper").value = wallpaper;
+  $("#glowEnabled").checked = glow;
+  $("#motionEnabled").checked = motion;
 
-  addSettingsAndSplash();
-  setupSettings();
-  setupFeaturedRotation();
-  renderAll();
-  loadAnime();
-})();
+  applySettings();
+}
+
+function applySettings() {
+  const appearance = $("#appearance").value;
+  const wallpaper = $("#wallpaper").value;
+
+  document.documentElement.dataset.appearance = appearance === "system"
+    ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
+    : appearance;
+
+  document.documentElement.dataset.wallpaper = wallpaper;
+  document.documentElement.classList.toggle("no-glow", !$("#glowEnabled").checked);
+  document.documentElement.classList.toggle("no-motion", !$("#motionEnabled").checked);
+}
+
+$("#settingsBtn")?.addEventListener("click", () => $("#settingsDialog").showModal());
+$("#closeSettings")?.addEventListener("click", () => $("#settingsDialog").close());
+
+$("#saveSettings")?.addEventListener("click", () => {
+  localStorage.setItem(settingsKeys.appearance, $("#appearance").value);
+  localStorage.setItem(settingsKeys.wallpaper, $("#wallpaper").value);
+  localStorage.setItem(settingsKeys.glow, String($("#glowEnabled").checked));
+  localStorage.setItem(settingsKeys.motion, String($("#motionEnabled").checked));
+  applySettings();
+  $("#settingsDialog").close();
+});
+
+loadSettings();
+loadCatalog();
