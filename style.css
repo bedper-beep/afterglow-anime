@@ -1,21 +1,30 @@
+
 /* Project Afterglow — style.css */
+
+/* ---------- FONTS & THEME ---------- */
+
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
 
 :root {
   color-scheme: dark;
+
   --bg: #090a12;
   --surface: rgba(19, 21, 35, .82);
   --surface-solid: #141625;
-  --surface-soft: rgba(255,255,255,.045);
+  --surface-soft: rgba(255, 255, 255, .045);
+
   --text: #f5f4fb;
   --muted: #a6a8bc;
-  --line: rgba(255,255,255,.10);
+  --line: rgba(255, 255, 255, .10);
+
   --accent: #b6a0ff;
   --accent-2: #73d8ff;
   --good: #a9f4d0;
+
   --radius: 20px;
-  --shadow: 0 22px 70px rgba(0,0,0,.28);
+  --shadow: 0 22px 70px rgba(0, 0, 0, .28);
   --page-width: 1380px;
+
   font-family: 'DM Sans', sans-serif;
   background: var(--bg);
   color: var(--text);
@@ -26,16 +35,22 @@
   box-sizing: border-box;
 }
 
+html {
+  min-height: 100%;
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
   color: var(--text);
   background:
-    radial-gradient(ellipse at 10% 0%, rgba(113,91,201,.19), transparent 36rem),
-    radial-gradient(ellipse at 90% 35%, rgba(36,139,176,.10), transparent 32rem),
+    radial-gradient(ellipse at 10% 0%, rgba(113, 91, 201, .19), transparent 36rem),
+    radial-gradient(ellipse at 90% 35%, rgba(36, 139, 176, .10), transparent 32rem),
     var(--bg);
   line-height: 1.55;
   overflow-x: hidden;
+  transition: background .35s ease, color .25s ease;
 }
 
 body::before {
@@ -43,11 +58,16 @@ body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: -1;
-  opacity: .30;
-  background-image: radial-gradient(rgba(255,255,255,.55) .7px, transparent .7px);
+  z-index: 0;
+  opacity: .22;
+  background-image: radial-gradient(rgba(255, 255, 255, .55) .7px, transparent .7px);
   background-size: 38px 38px;
   mask-image: linear-gradient(to bottom, black, transparent 80%);
+}
+
+body > * {
+  position: relative;
+  z-index: 1;
 }
 
 a {
@@ -109,7 +129,11 @@ p {
   color: var(--muted);
 }
 
-/* HEADER */
+[hidden] {
+  display: none !important;
+}
+
+/* ---------- HEADER ---------- */
 
 .topbar {
   width: min(var(--page-width), calc(100% - 48px));
@@ -124,9 +148,10 @@ p {
   z-index: 20;
   border: 1px solid var(--line);
   border-radius: 22px;
-  background: rgba(10,11,20,.76);
+  background: rgba(10, 11, 20, .78);
   backdrop-filter: blur(22px);
-  box-shadow: 0 12px 45px rgba(0,0,0,.18);
+  -webkit-backdrop-filter: blur(22px);
+  box-shadow: 0 12px 45px rgba(0, 0, 0, .18);
 }
 
 .brand {
@@ -141,18 +166,20 @@ p {
 .brand-mark {
   display: grid;
   place-items: center;
+  flex: 0 0 auto;
   width: 38px;
   height: 38px;
   border-radius: 13px;
   color: #fff;
   font-size: 0;
   background: linear-gradient(140deg, #a58aff, #5bcdf2);
-  box-shadow: 0 0 25px rgba(151,126,255,.26);
+  box-shadow: 0 0 25px rgba(151, 126, 255, .26);
 }
 
 .brand-mark::before {
   content: "✦";
   font-size: 1.55rem;
+  line-height: 1;
 }
 
 .dot,
@@ -169,7 +196,7 @@ p {
 .topbar nav a {
   color: var(--muted);
   font-size: .93rem;
-  transition: color .2s;
+  transition: color .2s ease;
 }
 
 .topbar nav a:hover {
@@ -183,10 +210,11 @@ p {
   height: 44px;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: rgba(255,255,255,.055);
+  background: rgba(255, 255, 255, .055);
   padding: 0 15px;
   color: var(--text);
   outline: none;
+  transition: border-color .2s, box-shadow .2s, background .2s;
 }
 
 #search::placeholder {
@@ -194,15 +222,15 @@ p {
 }
 
 #search:focus {
-  border-color: rgba(182,160,255,.65);
-  box-shadow: 0 0 0 3px rgba(182,160,255,.1);
+  border-color: rgba(182, 160, 255, .65);
+  box-shadow: 0 0 0 3px rgba(182, 160, 255, .1);
 }
 
 .settings-toggle,
 .icon-button {
   border: 1px solid var(--line);
   border-radius: 13px;
-  background: rgba(255,255,255,.06);
+  background: rgba(255, 255, 255, .06);
   min-height: 42px;
   padding: 0 13px;
   display: inline-flex;
@@ -214,15 +242,15 @@ p {
 
 .settings-toggle:hover,
 .icon-button:hover {
-  background: rgba(182,160,255,.14);
-  border-color: rgba(182,160,255,.4);
+  background: rgba(182, 160, 255, .14);
+  border-color: rgba(182, 160, 255, .4);
 }
 
 .settings-toggle span:first-child {
   font-size: 1.1rem;
 }
 
-/* FEATURED SECTION */
+/* ---------- MAIN CONTENT ---------- */
 
 main,
 footer {
@@ -230,8 +258,11 @@ footer {
   margin-inline: auto;
 }
 
+/* ---------- FEATURED SECTION ---------- */
+
 .hero {
   position: relative;
+  isolation: isolate;
   min-height: 440px;
   margin: 28px 0 62px;
   padding: clamp(30px, 6vw, 76px);
@@ -241,8 +272,8 @@ footer {
   display: flex;
   align-items: center;
   background:
-    linear-gradient(90deg, rgba(8,9,17,.97) 0%, rgba(8,9,17,.85) 42%, rgba(8,9,17,.22) 100%),
-    radial-gradient(ellipse at 80% 35%, rgba(129,97,255,.45), transparent 38%),
+    linear-gradient(90deg, rgba(8, 9, 17, .97) 0%, rgba(8, 9, 17, .85) 42%, rgba(8, 9, 17, .22) 100%),
+    radial-gradient(ellipse at 80% 35%, rgba(129, 97, 255, .45), transparent 38%),
     linear-gradient(135deg, #20203a, #0e1b2a 58%, #20132d);
   box-shadow: var(--shadow);
 }
@@ -251,11 +282,12 @@ footer {
   content: "";
   position: absolute;
   inset: 0 0 0 38%;
+  z-index: -1;
   pointer-events: none;
   background-image: var(--hero-art);
   background-size: cover;
   background-position: center 30%;
-  opacity: .36;
+  opacity: .42;
   mask-image: linear-gradient(90deg, transparent, black 55%);
 }
 
@@ -276,6 +308,7 @@ footer {
   font-size: .72rem;
   font-weight: 700;
   letter-spacing: .17em;
+  text-transform: uppercase;
 }
 
 .hero h1,
@@ -319,11 +352,11 @@ footer {
   background: linear-gradient(120deg, #b7a0ff, #78dfff);
   color: #10101a;
   border-color: transparent;
-  box-shadow: 0 9px 30px rgba(120,190,255,.18);
+  box-shadow: 0 9px 30px rgba(120, 190, 255, .18);
 }
 
 .secondary-action {
-  background: rgba(255,255,255,.06);
+  background: rgba(255, 255, 255, .06);
 }
 
 .hero img {
@@ -333,7 +366,7 @@ footer {
   width: 28%;
   height: 84%;
   object-fit: contain;
-  filter: drop-shadow(0 20px 45px rgba(0,0,0,.55));
+  filter: drop-shadow(0 20px 45px rgba(0, 0, 0, .55));
 }
 
 .hero-controls {
@@ -350,6 +383,7 @@ footer {
   padding: 0;
   border-radius: 9px;
   background: #73758b;
+  transition: width .2s, background .2s;
 }
 
 .hero-dot.active {
@@ -357,7 +391,7 @@ footer {
   background: var(--accent-2);
 }
 
-/* ANIME SECTIONS */
+/* ---------- ANIME SECTIONS ---------- */
 
 .library-section {
   margin: 0 0 64px;
@@ -398,6 +432,8 @@ footer {
   accent-color: var(--accent);
 }
 
+/* Six cards on wide screens, four on tablets, two on phones. */
+
 .anime-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -410,14 +446,14 @@ footer {
   border: 1px solid var(--line);
   border-radius: 18px;
   background: var(--surface);
-  box-shadow: 0 12px 35px rgba(0,0,0,.10);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, .10);
   transition: transform .24s ease, border-color .24s, box-shadow .24s;
 }
 
 .anime-card:hover {
   transform: translateY(-5px);
-  border-color: rgba(182,160,255,.42);
-  box-shadow: 0 18px 45px rgba(0,0,0,.25);
+  border-color: rgba(182, 160, 255, .42);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, .25);
 }
 
 .poster-button {
@@ -429,6 +465,7 @@ footer {
   padding: 0;
   background: #1c1d31;
   overflow: hidden;
+  isolation: isolate;
 }
 
 .poster {
@@ -450,7 +487,7 @@ footer {
   color: white;
   font-weight: 700;
   opacity: 0;
-  background: rgba(8,9,18,.48);
+  background: rgba(8, 9, 18, .48);
   transition: opacity .2s;
 }
 
@@ -460,11 +497,13 @@ footer {
 }
 
 .poster-placeholder {
+  position: absolute;
+  inset: 0;
   display: grid;
   place-items: center;
   color: var(--accent);
   font-size: 3rem;
-  background: linear-gradient(145deg,#24223d,#101a2b);
+  background: linear-gradient(145deg, #24223d, #101a2b);
 }
 
 .card-copy {
@@ -496,6 +535,11 @@ footer {
   color: var(--muted);
   font-size: 1.35rem;
   line-height: 1;
+  transition: color .2s, transform .2s;
+}
+
+.favorite-button:hover {
+  transform: scale(1.12);
 }
 
 .favorite-button.is-favorite {
@@ -526,7 +570,7 @@ footer {
   transform: translateX(4px);
 }
 
-/* EMPTY AND STATUS STATES */
+/* ---------- EMPTY & STATUS STATES ---------- */
 
 .empty-state {
   grid-column: 1 / -1;
@@ -566,7 +610,7 @@ footer {
   color: #ffb2ba;
 }
 
-/* FOOTER */
+/* ---------- FOOTER ---------- */
 
 footer {
   padding: 28px 0 38px;
@@ -581,7 +625,7 @@ footer p {
   margin: 0;
 }
 
-/* ANIME DETAILS */
+/* ---------- ANIME DETAILS ---------- */
 
 dialog {
   width: min(880px, calc(100% - 28px));
@@ -592,12 +636,13 @@ dialog {
   background: var(--surface-solid);
   border: 1px solid var(--line);
   border-radius: 24px;
-  box-shadow: 0 35px 100px rgba(0,0,0,.65);
+  box-shadow: 0 35px 100px rgba(0, 0, 0, .65);
 }
 
 dialog::backdrop {
-  background: rgba(3,4,10,.78);
+  background: rgba(3, 4, 10, .78);
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .dialog-close {
@@ -610,7 +655,7 @@ dialog::backdrop {
   height: 40px;
   border-radius: 50%;
   border: 1px solid var(--line);
-  background: rgba(10,10,18,.82);
+  background: rgba(10, 10, 18, .82);
   font-size: 1.4rem;
 }
 
@@ -666,27 +711,28 @@ dialog::backdrop {
   font-size: .76rem;
 }
 
-/* SETTINGS PANEL */
+/* ---------- SETTINGS PANEL ---------- */
 
 .settings-panel {
   position: fixed;
   z-index: 50;
   top: 104px;
-  right: max(24px, calc((100vw - var(--page-width))/2));
+  right: max(24px, calc((100vw - var(--page-width)) / 2));
   width: min(390px, calc(100vw - 28px));
   max-height: calc(100vh - 125px);
   overflow: auto;
   padding: 22px;
   border: 1px solid var(--line);
   border-radius: 24px;
-  background: rgba(17,18,31,.94);
+  background: rgba(17, 18, 31, .94);
   backdrop-filter: blur(26px);
-  box-shadow: 0 30px 90px rgba(0,0,0,.48);
+  -webkit-backdrop-filter: blur(26px);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, .48);
   animation: panel-in .22s ease-out;
 }
 
 .settings-panel[hidden] {
-  display: none;
+  display: none !important;
 }
 
 .settings-head {
@@ -738,6 +784,7 @@ dialog::backdrop {
   font-weight: 700;
   overflow: hidden;
   position: relative;
+  isolation: isolate;
   background: #25243a;
 }
 
@@ -745,7 +792,7 @@ dialog::backdrop {
   content: "";
   position: absolute;
   inset: 0;
-  z-index: 0;
+  z-index: -1;
   opacity: .9;
   transition: transform .3s;
 }
@@ -757,6 +804,7 @@ dialog::backdrop {
 .wallpaper-choice span {
   position: relative;
   z-index: 1;
+  color: #fff;
   text-shadow: 0 2px 10px #000;
 }
 
@@ -776,13 +824,13 @@ dialog::backdrop {
 
 .wallpaper-choice.glass::before {
   background:
-    linear-gradient(135deg, rgba(255,255,255,.4), rgba(119,176,255,.15)),
-    repeating-linear-gradient(45deg,#202b40,#202b40 8px,#2d2946 8px,#2d2946 16px);
+    linear-gradient(135deg, rgba(255, 255, 255, .4), rgba(119, 176, 255, .15)),
+    repeating-linear-gradient(45deg, #202b40, #202b40 8px, #2d2946 8px, #2d2946 16px);
 }
 
 .wallpaper-choice.selected {
   border-color: var(--accent-2);
-  box-shadow: 0 0 0 2px rgba(115,216,255,.2);
+  box-shadow: 0 0 0 2px rgba(115, 216, 255, .2);
 }
 
 .settings-select {
@@ -823,6 +871,7 @@ dialog::backdrop {
   accent-color: var(--accent);
   width: 18px;
   height: 18px;
+  flex: 0 0 auto;
 }
 
 .settings-footnote {
@@ -830,7 +879,7 @@ dialog::backdrop {
   font-size: .75rem;
 }
 
-/* FIRST-VISIT SPLASH SCREEN */
+/* ---------- FIRST-VISIT SPLASH ---------- */
 
 .splash-screen {
   position: fixed;
@@ -847,6 +896,7 @@ dialog::backdrop {
 .splash-hidden {
   opacity: 0;
   visibility: hidden;
+  pointer-events: none;
 }
 
 .splash-logo {
@@ -857,8 +907,8 @@ dialog::backdrop {
   border-radius: 25px;
   font-size: 2.9rem;
   color: #fff;
-  background: linear-gradient(135deg,#b5a0ff,#66d8ff);
-  box-shadow: 0 0 60px rgba(155,133,255,.38);
+  background: linear-gradient(135deg, #b5a0ff, #66d8ff);
+  box-shadow: 0 0 60px rgba(155, 133, 255, .38);
   animation: star-float 1.4s ease-in-out infinite alternate;
 }
 
@@ -878,7 +928,7 @@ dialog::backdrop {
   height: 3px;
   overflow: hidden;
   border-radius: 8px;
-  background: rgba(255,255,255,.12);
+  background: rgba(255, 255, 255, .12);
 }
 
 .splash-loader i {
@@ -889,6 +939,8 @@ dialog::backdrop {
   background: var(--accent-2);
   animation: loading 1s ease-in-out infinite;
 }
+
+/* ---------- ANIMATIONS ---------- */
 
 @keyframes loading {
   from { transform: translateX(-110%); }
@@ -910,26 +962,26 @@ dialog::backdrop {
   }
 }
 
-/* WALLPAPERS */
+/* ---------- WALLPAPERS ---------- */
 
 :root[data-wallpaper="neon"] body {
   background:
-    radial-gradient(ellipse at 15% 0%, rgba(119,65,255,.25), transparent 36rem),
-    radial-gradient(ellipse at 90% 35%, rgba(24,192,223,.16), transparent 35rem),
+    radial-gradient(ellipse at 15% 0%, rgba(119, 65, 255, .25), transparent 36rem),
+    radial-gradient(ellipse at 90% 35%, rgba(24, 192, 223, .16), transparent 35rem),
     var(--bg);
 }
 
 :root[data-wallpaper="sunset"] body {
   background:
-    radial-gradient(ellipse at 12% 0%, rgba(255,128,104,.24), transparent 35rem),
-    radial-gradient(ellipse at 90% 40%, rgba(195,86,153,.20), transparent 35rem),
+    radial-gradient(ellipse at 12% 0%, rgba(255, 128, 104, .24), transparent 35rem),
+    radial-gradient(ellipse at 90% 40%, rgba(195, 86, 153, .20), transparent 35rem),
     #100c18;
 }
 
 :root[data-wallpaper="galaxy"] body {
   background:
-    radial-gradient(ellipse at 50% 0%, rgba(108,67,204,.28), transparent 40rem),
-    radial-gradient(ellipse at 90% 60%, rgba(39,99,183,.16), transparent 35rem),
+    radial-gradient(ellipse at 50% 0%, rgba(108, 67, 204, .28), transparent 40rem),
+    radial-gradient(ellipse at 90% 60%, rgba(39, 99, 183, .16), transparent 35rem),
     #080a18;
 }
 
@@ -937,33 +989,41 @@ dialog::backdrop {
 :root[data-wallpaper="glass"] .anime-card,
 :root[data-wallpaper="glass"] .hero,
 :root[data-wallpaper="glass"] .settings-panel {
-  background-color: rgba(255,255,255,.07);
+  background-color: rgba(255, 255, 255, .07);
   backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
 }
 
-/* LIGHT MODE */
+/* ---------- LIGHT MODE ---------- */
 
 :root[data-appearance="light"] {
   color-scheme: light;
+
   --bg: #eef0f8;
-  --surface: rgba(255,255,255,.82);
+  --surface: rgba(255, 255, 255, .82);
   --surface-solid: #fff;
-  --surface-soft: rgba(25,29,50,.04);
+  --surface-soft: rgba(25, 29, 50, .04);
+
   --text: #171827;
   --muted: #666b82;
-  --line: rgba(25,29,50,.12);
-  --shadow: 0 22px 70px rgba(39,44,75,.12);
+  --line: rgba(25, 29, 50, .12);
+
+  --shadow: 0 22px 70px rgba(39, 44, 75, .12);
 }
 
 :root[data-appearance="light"] body {
   background:
-    radial-gradient(ellipse at 10% 0%, rgba(150,130,255,.17), transparent 35rem),
-    #eef0f8;
+    radial-gradient(ellipse at 10% 0%, rgba(150, 130, 255, .17), transparent 35rem),
+    var(--bg);
 }
 
 :root[data-appearance="light"] .topbar,
 :root[data-appearance="light"] .settings-panel {
-  background: rgba(250,250,255,.82);
+  background: rgba(250, 250, 255, .88);
+}
+
+:root[data-appearance="light"] .anime-card {
+  background: var(--surface);
 }
 
 :root[data-appearance="light"] .hero {
@@ -975,7 +1035,7 @@ dialog::backdrop {
 }
 
 :root[data-appearance="light"] #search {
-  background: rgba(255,255,255,.7);
+  background: rgba(255, 255, 255, .7);
   color: #171827;
 }
 
@@ -984,7 +1044,11 @@ dialog::backdrop {
   color: #171827;
 }
 
-/* EFFECT CONTROLS */
+:root[data-appearance="light"] .dialog-close {
+  color: #fff;
+}
+
+/* ---------- EFFECT CONTROLS ---------- */
 
 :root.no-glow .brand-mark,
 :root.no-glow .primary-action,
@@ -1004,7 +1068,7 @@ dialog::backdrop {
   scroll-behavior: auto !important;
 }
 
-/* TABLET */
+/* ---------- TABLET ---------- */
 
 @media (max-width: 1120px) {
   .anime-grid {
@@ -1014,9 +1078,17 @@ dialog::backdrop {
   .hero {
     min-height: 400px;
   }
+
+  .topbar {
+    gap: 16px;
+  }
+
+  .topbar nav {
+    gap: 15px;
+  }
 }
 
-/* PHONE */
+/* ---------- PHONE ---------- */
 
 @media (max-width: 760px) {
   .topbar {
@@ -1044,6 +1116,7 @@ dialog::backdrop {
     width: 100%;
     gap: 18px;
     padding: 3px 2px 1px;
+    overflow-x: auto;
   }
 
   #search {
@@ -1079,7 +1152,7 @@ dialog::backdrop {
 
   .hero::before {
     inset: 0;
-    opacity: .25;
+    opacity: .30;
     mask-image: linear-gradient(to bottom, black, transparent 95%);
   }
 
@@ -1088,7 +1161,7 @@ dialog::backdrop {
     top: 2%;
     width: 45%;
     height: 54%;
-    opacity: .75;
+    opacity: .8;
   }
 
   .hero > div,
@@ -1119,6 +1192,14 @@ dialog::backdrop {
     gap: 12px;
   }
 
+  .anime-card {
+    border-radius: 16px;
+  }
+
+  .poster-button {
+    aspect-ratio: 3 / 4.15;
+  }
+
   .card-copy {
     padding: 11px;
   }
@@ -1129,10 +1210,6 @@ dialog::backdrop {
 
   .card-meta {
     font-size: .72rem;
-  }
-
-  .poster-button {
-    aspect-ratio: 3 / 4.15;
   }
 
   footer {
@@ -1151,7 +1228,7 @@ dialog::backdrop {
   }
 
   .detail-layout {
-    grid-template-columns: 100px minmax(0,1fr);
+    grid-template-columns: 100px minmax(0, 1fr);
     gap: 17px;
   }
 
@@ -1169,7 +1246,7 @@ dialog::backdrop {
   }
 }
 
-/* SMALL PHONE */
+/* ---------- SMALL PHONE ---------- */
 
 @media (max-width: 380px) {
   .brand {
@@ -1195,7 +1272,7 @@ dialog::backdrop {
   }
 }
 
-/* ACCESSIBILITY */
+/* ---------- ACCESSIBILITY ---------- */
 
 @media (prefers-reduced-motion: reduce) {
   *,
